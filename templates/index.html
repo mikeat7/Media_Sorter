@@ -1,0 +1,793 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media Sorter</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#141814;color:#e0e8e0;min-height:100vh}
+
+header{background:linear-gradient(135deg,#1a321a,#243824);padding:16px 28px;display:flex;align-items:center;gap:14px;border-bottom:2px solid #365436;box-shadow:0 2px 16px #0007}
+header h1{font-size:1.35rem;font-weight:700;color:#a8dca8}
+header p{font-size:.78rem;color:#6a9a6a;margin-top:2px}
+
+.main{max-width:1160px;margin:0 auto;padding:22px 18px 60px}
+
+.card{background:#1c211c;border:1px solid #2e3e2e;border-radius:10px;padding:18px 22px;margin-bottom:18px}
+.card-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5a9a5a;margin-bottom:14px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:600px){.grid2{grid-template-columns:1fr}}
+
+label{display:block;font-size:.78rem;color:#7a9a7a;margin-bottom:4px}
+.field-row{display:flex;gap:8px}
+.field-row input{flex:1}
+
+input[type=text],select{width:100%;background:#111511;border:1px solid #3a4e3a;border-radius:6px;color:#e0e8e0;padding:8px 10px;font-size:.88rem;outline:none;transition:border-color .2s}
+input[type=text]:focus,select:focus{border-color:#5aaa5a}
+
+/* file type pills */
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:2px solid #3a4e3a;background:#111511;color:#7a9a7a;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;user-select:none}
+.pill.on{border-color:#5aaa5a;background:#1a2e1a;color:#a8dca8}
+.pill input{display:none}
+
+/* mode bar */
+.mode-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.mode-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;border:2px solid #2e3e2e;background:#111511;color:#7a9a7a;font-size:.84rem;font-weight:600;cursor:pointer;transition:all .15s;user-select:none}
+.mode-btn:hover{border-color:#4a6a4a;color:#b0ccb0}
+.mode-btn.active{border-color:#5aaa5a;background:#1a2e1a;color:#a8dca8}
+.mode-desc{font-size:.78rem;color:#5a8a6a;line-height:1.5;padding:8px 12px;background:#111e11;border-radius:6px;border-left:3px solid #3a6a3a}
+
+/* category toggles */
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+.cat-toggle{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:2px solid #2e3e2e;background:#111511;cursor:pointer;transition:all .15s;user-select:none}
+.cat-toggle.on{border-color:var(--cat-color);background:color-mix(in srgb,var(--cat-color) 12%,#111511)}
+.cat-toggle .emoji{font-size:1.3rem;line-height:1}
+.cat-toggle .info{flex:1}
+.cat-toggle .name{font-size:.84rem;font-weight:600;color:#c0d8c0}
+.cat-toggle .sub{font-size:.7rem;color:#5a7a5a;margin-top:1px}
+.cat-toggle input{display:none}
+.cat-toggle .dot{width:10px;height:10px;border-radius:50%;background:#2e3e2e;transition:background .15s;flex-shrink:0}
+.cat-toggle.on .dot{background:var(--cat-color)}
+
+/* slider */
+.slider-row{display:flex;align-items:center;gap:10px}
+input[type=range]{flex:1;accent-color:#5aaa5a;cursor:pointer}
+.sval{min-width:36px;text-align:right;color:#8ada8a;font-weight:700;font-size:.88rem}
+
+/* multi-copy toggle */
+.multicopy-row{display:flex;align-items:center;gap:10px;margin-top:12px;padding:8px 12px;background:#111e11;border-radius:6px;border:1px solid #2a3e2a}
+.multicopy-row input[type=checkbox]{width:16px;height:16px;accent-color:#5aaa5a;cursor:pointer;flex-shrink:0}
+.multicopy-row span{font-size:.82rem;color:#8aaa8a}
+.multicopy-row strong{color:#a8dca8}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;border-radius:7px;border:none;font-size:.88rem;font-weight:600;cursor:pointer;transition:opacity .15s,transform .1s}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-start{background:#3a7a3a;color:#fff}
+.btn-stop{background:#7a3a3a;color:#fff}
+.btn-detect{background:#3a3a7a;color:#fff;padding:8px 12px}
+.btn-sm{background:#1e2e1e;color:#8aaa8a;border:1px solid #2e4e2e;font-size:.76rem;padding:5px 11px;border-radius:5px;cursor:pointer}
+.btn-sm:hover{background:#253525}
+
+/* status badge */
+.action-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+.badge{padding:4px 13px;border-radius:20px;font-size:.76rem;font-weight:700;background:#1a2a1a;color:#5a8a5a}
+.badge.running{color:#5aea5a;animation:pulse 1.5s infinite}
+.badge.done{color:#5aeaa0;background:#1a2e22}
+.badge.error{color:#ea5a5a;background:#2e1a1a}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* progress */
+.prog-wrap{background:#0e120e;border-radius:4px;height:7px;overflow:hidden;margin-bottom:10px}
+.prog-bar{height:100%;background:linear-gradient(90deg,#3a7a3a,#5aca5a);width:0;transition:width .4s ease;border-radius:4px}
+.prog-text{font-size:.78rem;color:#6a9a6a;margin-bottom:10px}
+
+/* log */
+#log{background:#0a0e0a;border:1px solid #1e2e1e;border-radius:8px;height:240px;overflow-y:auto;padding:10px 12px;font-family:"Cascadia Code","Consolas",monospace;font-size:.75rem;line-height:1.75}
+
+/* log colours — all 20 category keys + special states */
+.l-night{color:#aa88ff}.l-damaged{color:#ff6a6a}.l-screenshot{color:#88aabb}
+.l-selfie{color:#bb88aa}.l-panorama{color:#88bbaa}.l-duplicate{color:#aa9988}
+.l-animal{color:#5aea5a}.l-person{color:#5aabff}.l-vehicle{color:#ffbb3a}
+.l-pets{color:#e8962a}.l-nature{color:#a0da70}.l-sunset{color:#ff8c5a}
+.l-water{color:#5accff}.l-buildings{color:#c8aa70}.l-flowers{color:#e87acc}
+.l-food{color:#ff9a5a}.l-documents{color:#9aaabb}.l-snow{color:#bbd8e8}
+.l-indoor{color:#70aacc}.l-events{color:#e84aaa}
+.l-date{color:#88ccaa}.l-location{color:#88aacc}.l-collected{color:#aaccaa}
+.l-filter_match{color:#ccee88}.l-face_match{color:#d4aaff}.l-unsorted{color:#6a6a6a}.l-other{color:#3a5a3a}.l-skip{color:#2e2e2e}
+.l-info{color:#6a9a8a;font-style:italic}.l-scanning{color:#3a5a3a}
+
+/* results grid (sort / filter) */
+.res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.res-card{background:#111511;border:2px solid #2e3e2e;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;transition:border-color .2s}
+.res-card:hover{border-color:var(--cat-color)}
+.res-header{display:flex;align-items:center;justify-content:space-between}
+.res-label{display:flex;align-items:center;gap:7px;font-weight:700;font-size:.9rem;color:#c0d8c0}
+.res-count{font-size:2rem;font-weight:800;color:var(--cat-color);line-height:1}
+.thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:3px;max-height:140px;overflow-y:auto}
+.thumb-grid img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:3px;cursor:pointer;transition:transform .15s;border:1px solid #1e2e1e}
+.thumb-grid img:hover{transform:scale(1.08)}
+.no-items{font-size:.73rem;color:#2e4e2e;text-align:center;padding:14px 0}
+
+/* simple results list (collect / date / location) */
+.simple-res{display:flex;flex-direction:column;gap:8px}
+.simple-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#111511;border:1px solid #2e3e2e;border-radius:8px}
+.simple-row .sr-label{font-size:.88rem;color:#c0d8c0;font-weight:600}
+.simple-row .sr-count{font-size:1.3rem;font-weight:800;color:#5aea8a;min-width:3ch;text-align:right}
+.simple-row .sr-open{background:#1e2e1e;color:#8aaa8a;border:1px solid #2e4e2e;font-size:.74rem;padding:4px 10px;border-radius:5px;cursor:pointer}
+.simple-row .sr-open:hover{background:#253525}
+
+/* face profiles */
+.face-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;
+  border-radius:20px;border:2px solid #3a2e5a;background:#1a1228;color:#c0a8e8;
+  font-size:.82rem;font-weight:600;margin:4px}
+.face-chip .del{cursor:pointer;color:#7a5a8a;font-size:1rem;line-height:1}
+.face-chip .del:hover{color:#ea5aaa}
+.face-upload{display:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:2rem;line-height:1">📷</div>
+  <div>
+    <h1>Media Sorter</h1>
+    <p>AI-powered photo &amp; video organiser — works on SD cards, phones, or any folder</p>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ── Source & Output ─────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Source &amp; Output</div>
+    <div class="grid2">
+      <div>
+        <label>Source folder (SD card, phone, or any folder)</label>
+        <div class="field-row">
+          <input type="text" id="source" placeholder="e.g. D:\DCIM\MOVIE  or  E:\Pictures">
+          <button class="btn btn-detect" onclick="detectDrives()" title="Auto-detect removable drives">🔍</button>
+        </div>
+        <div id="drive-hint" style="font-size:.72rem;color:#4a7a4a;margin-top:5px"></div>
+      </div>
+      <div>
+        <label>Output / project folder</label>
+        <input type="text" id="output" value="{{ default_output }}">
+      </div>
+    </div>
+
+    <div style="margin-top:14px">
+      <label>File types to process</label>
+      <div class="pill-row">
+        <label class="pill on" id="pill-video">
+          <input type="checkbox" checked onchange="togglePill(this,'pill-video')"> 🎬 Videos (MP4, MOV…)
+        </label>
+        <label class="pill on" id="pill-image">
+          <input type="checkbox" checked onchange="togglePill(this,'pill-image')"> 🖼️ Photos (JPG, PNG…)
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Mode Selector ───────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Operation Mode</div>
+    <div class="mode-bar">
+      <button class="mode-btn active" data-mode="collect"  onclick="setMode('collect')">📷 Scan For Photos</button>
+      <button class="mode-btn"        data-mode="sort"     onclick="setMode('sort')">🔀 Sort By Category</button>
+      <button class="mode-btn"        data-mode="date"     onclick="setMode('date')">📅 Sort by Date</button>
+      <button class="mode-btn"        data-mode="location" onclick="setMode('location')">📍 Sort by Location</button>
+      <button class="mode-btn"        data-mode="filter"   onclick="setMode('filter')">🔍 Find Photos With</button>
+    </div>
+    <div class="mode-desc" id="mode-desc"></div>
+  </div>
+
+  <!-- ── Categories & Controls ──────────────────────────────────────────── -->
+  <div class="card">
+    <div id="cats-section">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span id="cats-title">Categories — <span style="color:#a8dca8">● coloured = will sort</span> &nbsp; <span style="color:#3a4e3a">● grey = skip</span></span>
+        <span style="display:flex;gap:8px">
+          <button class="btn-sm" onclick="setAll(true)">All on</button>
+          <button class="btn-sm" onclick="setAll(false)">All off</button>
+        </span>
+      </div>
+      <div class="cat-grid" id="cat-grid"><!-- injected by JS --></div>
+
+      <!-- custom category creator -->
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #2a3a2a">
+        <div style="font-size:.74rem;color:#5a9a5a;margin-bottom:8px">
+          ＋ Add your own category &mdash; uses AI text matching
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:130px">
+            <label>Category name</label>
+            <input type="text" id="new-cat-name" placeholder="e.g. My Dog">
+          </div>
+          <div style="flex:2;min-width:220px">
+            <label>Describe what the photos look like (leave blank to auto-generate)</label>
+            <input type="text" id="new-cat-prompt" placeholder="e.g. a golden retriever dog playing outside">
+          </div>
+          <button class="btn-sm" style="margin-bottom:1px" onclick="addCategory()">Add ＋</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- confidence slider — hidden in collect/date/location modes -->
+    <div id="conf-section" style="margin-top:16px">
+      <label>Detection confidence (AI sensitivity):&nbsp;<span class="sval" id="conf-val">25%</span></label>
+      <div class="slider-row">
+        <span style="font-size:.72rem;color:#4a6a4a">More finds</span>
+        <input type="range" id="confidence" min="5" max="60" value="25"
+               oninput="document.getElementById('conf-val').textContent=this.value+'%'">
+        <span style="font-size:.72rem;color:#4a6a4a">Fewer false hits</span>
+      </div>
+    </div>
+
+    <!-- multi-copy toggle — visible only in sort mode -->
+    <div class="multicopy-row" id="multicopy-row" style="display:none">
+      <input type="checkbox" id="multi-copy" checked>
+      <span><strong>Copy to all matching categories</strong> — a file with both an animal and a person is placed in both folders</span>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-start" id="btn-start" onclick="startSort()">▶ Start</button>
+      <button class="btn btn-stop"  id="btn-stop"  onclick="stopSort()" disabled>■ Stop</button>
+      <span class="badge" id="badge">Idle</span>
+    </div>
+  </div>
+
+
+  <!-- Face Profiles -->
+  <div class="card" id="faces-card">
+    <div class="card-title">Face Profiles &mdash; sorts photos by recognised person</div>
+
+    <div id="face-chips" style="margin-bottom:10px;min-height:32px">
+      <span style="font-size:.76rem;color:#4a3a6a">No profiles yet &mdash; add one below</span>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:130px">
+        <label>Person's name</label>
+        <input type="text" id="face-name" placeholder="e.g. Mike">
+      </div>
+      <div style="flex:2;min-width:220px">
+        <label>Reference photos &mdash; clear, front-facing (1-5 photos)</label>
+        <input type="file" id="face-files" class="face-upload" accept="image/*" multiple>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="face-files-label" placeholder="No files chosen" readonly
+                 onclick="document.getElementById('face-files').click()"
+                 style="cursor:pointer;flex:1">
+          <button class="btn-sm" onclick="document.getElementById('face-files').click()">Browse</button>
+        </div>
+      </div>
+      <button class="btn-sm" style="margin-bottom:1px;padding:8px 16px"
+              onclick="addFaceProfile()">Add &#128100;</button>
+    </div>
+    <div id="face-status" style="font-size:.76rem;color:#7a9a7a;margin-top:8px"></div>
+  </div>
+  <!-- ── Progress ───────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Progress</div>
+    <div class="prog-wrap"><div class="prog-bar" id="prog-bar"></div></div>
+    <div class="prog-text" id="prog-text">Ready — configure above and press Start</div>
+    <div id="log"></div>
+  </div>
+
+  <!-- ── Results ─────────────────────────────────────────────────────────── -->
+  <div class="card" id="res-card" style="display:none">
+    <div class="card-title">Results</div>
+    <!-- sort / filter: thumbnail cards -->
+    <div class="res-grid" id="res-grid"></div>
+    <!-- collect / date / location: simple list -->
+    <div class="simple-res" id="simple-res"></div>
+  </div>
+
+</div><!-- .main -->
+
+<script>
+// ── category definitions (injected server-side) ────────────────────────────
+const CATS = {{ categories | tojson }};
+
+// ── state ──────────────────────────────────────────────────────────────────
+let currentMode  = 'sort';
+let folders      = {};
+let thumbCounts  = {};
+let simpleRows   = {};   // label → count, for collect/date/location
+let evtSrc       = null;
+
+const MODE_DESCS = {
+  collect:  'Scans all photos and videos from your source folder — including every subfolder — and gathers them into one Collected/ folder. Run this first to pull everything together, then use Sort By Category on the result.',
+  sort:     'AI scans every file and copies it into the matching category folder. Turn on multi-copy to send a file to more than one folder when it matches multiple categories.',
+  date:     'Reads the date from each photo or video and sorts into Year / Month sub-folders. Falls back to file-modified date when no metadata is present.',
+  location: 'Reads GPS coordinates from each photo and sorts into City / Country folders. Photos without GPS data go into No_GPS/.',
+  filter:   'Select two or more categories — only files that match ALL of them are copied. Example: turn on Animals and People to find clips containing both.  \n\nAND logic — a file must match every selected category to be copied. Example: turn on Animals and People to find only clips that contain both.',
+};
+
+// ── mode switching ──────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+
+  document.getElementById('mode-desc').textContent = MODE_DESCS[mode] || '';
+
+  const needCats = mode === 'sort' || mode === 'filter';
+  const needConf = needCats;
+
+  document.getElementById('cats-section').style.display = needCats ? '' : 'none';
+  document.getElementById('conf-section').style.display = needConf ? '' : 'none';
+  document.getElementById('multicopy-row').style.display = mode === 'sort' ? '' : 'none';
+
+  const title = document.getElementById('cats-title');
+  if (mode === 'filter') {
+    title.innerHTML = 'Find Photos With — <strong style="color:#ccee88">file must match ALL selected categories</strong>';
+  } else {
+    title.innerHTML = 'Categories — <span style="color:#a8dca8">● coloured = will sort</span> &nbsp; <span style="color:#3a4e3a">● grey = skip</span>';
+  }
+
+  const startBtn = document.getElementById('btn-start');
+  const labels = { collect:'▶ Scan For Photos', sort:'▶ Sort By Category',
+                   date:'▶ Sort by Date', location:'▶ Sort by Location', filter:'▶ Find Photos With' };
+  startBtn.textContent = labels[mode] || '▶ Start';
+}
+
+// ── build category toggle UI ───────────────────────────────────────────────
+function buildCatGrid() {
+  const grid = document.getElementById('cat-grid');
+  CATS.forEach(cat => {
+    thumbCounts[cat.key] = 0;
+    const div = document.createElement('label');
+    div.className = 'cat-toggle';
+    div.id = 'cat-' + cat.key;
+    div.style.setProperty('--cat-color', cat.color);
+    div.innerHTML = `
+      <input type="checkbox" onchange="toggleCat(this,'cat-${cat.key}')">
+      <span class="emoji">${cat.emoji}</span>
+      <span class="info">
+        <div class="name">${cat.label}</div>
+        <div class="sub">${cat.key.charAt(0).toUpperCase()+cat.key.slice(1)}/</div>
+      </span>
+      <span class="dot"></span>`;
+    grid.appendChild(div);
+  });
+}
+
+function toggleCat(cb, id) {
+  document.getElementById(id).classList.toggle('on', cb.checked);
+}
+function togglePill(cb, id) {
+  document.getElementById(id).classList.toggle('on', cb.checked);
+}
+function setAll(on) {
+  document.querySelectorAll('.cat-toggle input').forEach(cb => {
+    cb.checked = on;
+    toggleCat(cb, cb.closest('.cat-toggle').id);
+  });
+}
+
+// ── drive detection ────────────────────────────────────────────────────────
+async function detectDrives() {
+  const hint = document.getElementById('drive-hint');
+  hint.textContent = 'Scanning for removable drives & phones…';
+  try {
+    const r = await fetch('/api/drives');
+    const drives = await r.json();
+    if (!drives.length) {
+      hint.textContent = 'No removable drives found — enter path manually (e.g. D:\\DCIM\\MOVIE).';
+    } else {
+      document.getElementById('source').value = drives[0] + '\\DCIM\\MOVIE';
+      hint.textContent = 'Detected: ' + drives.join(', ') + ' — path filled in. Adjust if needed.';
+    }
+  } catch {
+    hint.textContent = 'Detection failed — enter path manually (e.g. D:\\DCIM\\MOVIE).';
+  }
+}
+
+// ── sort controls ──────────────────────────────────────────────────────────
+async function startSort() {
+  const source     = document.getElementById('source').value.trim();
+  const output     = document.getElementById('output').value.trim();
+  const confidence = parseInt(document.getElementById('confidence').value) / 100;
+  const multiCopy  = document.getElementById('multi-copy').checked;
+  const enabled    = [...document.querySelectorAll('.cat-toggle.on input')]
+                       .map(cb => cb.closest('.cat-toggle').id.replace('cat-',''));
+  const fileTypes  = [];
+  if (document.querySelector('#pill-video input').checked) fileTypes.push('video');
+  if (document.querySelector('#pill-image input').checked) fileTypes.push('image');
+
+  if (!source) { alert('Please enter a source folder path.'); return; }
+  if ((currentMode === 'sort' || currentMode === 'filter') && !enabled.length) {
+    alert('Please enable at least one category.'); return;
+  }
+
+  clearUI();
+  setRunning(true);
+
+  await fetch('/api/start', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({source, output, confidence, enabled, fileTypes,
+                          mode: currentMode, multiCopy, filterAll: true}),
+  });
+  listenStream();
+}
+
+async function stopSort() {
+  await fetch('/api/stop', {method: 'POST'});
+}
+
+// ── SSE stream ─────────────────────────────────────────────────────────────
+function listenStream() {
+  if (evtSrc) evtSrc.close();
+  evtSrc = new EventSource('/api/stream');
+  evtSrc.onmessage = e => handle(JSON.parse(e.data));
+  evtSrc.onerror   = () => evtSrc.close();
+}
+
+function handle(msg) {
+  if (msg.type === 'start') {
+    document.getElementById('prog-text').textContent = '0 / ' + msg.total + ' files';
+    document.getElementById('res-card').style.display = '';
+
+    const isSortLike = currentMode === 'sort' || currentMode === 'filter';
+    document.getElementById('res-grid').style.display    = isSortLike ? '' : 'none';
+    document.getElementById('simple-res').style.display  = isSortLike ? 'none' : '';
+
+    if (isSortLike) {
+      buildResultCards(msg.categories);
+    } else {
+      simpleRows = {};
+      document.getElementById('simple-res').innerHTML = '';
+    }
+  }
+
+  if (msg.type === 'progress') {
+    const pct = (msg.current / msg.total * 100).toFixed(1);
+    document.getElementById('prog-bar').style.width = pct + '%';
+    document.getElementById('prog-text').textContent =
+      msg.current + ' / ' + msg.total + ' files  (' + pct + '%)';
+
+    const cat  = msg.cat;
+    const file = msg.file;
+    const n    = msg.current;
+    const tot  = msg.total;
+
+    if (cat === 'skip') {
+      appendLog('[' + n + '/' + tot + '] ' + file + ' — skipped (unreadable)', 'l-skip');
+      return;
+    }
+    if (cat === 'other') {
+      appendLog('[' + n + '/' + tot + '] ' + file + ' — no match', 'l-other');
+      return;
+    }
+
+    // simple modes: collect / date / location / filter_match
+    if (cat === 'collected' || cat === 'date' || cat === 'location' || cat === 'filter_match') {
+      const label = msg.label || cat;
+      appendLog('[' + n + '/' + tot + '] ' + file + ' → ' + label, 'l-' + cat);
+      bumpSimpleCount(label);
+      return;
+    }
+
+
+    // face recognition match — dynamic result card
+    if (cat === 'face_match') {
+      const label = msg.label || 'Unknown';
+      const fkey  = 'face_' + label.toLowerCase().replace(/\s+/g,'_');
+      appendLog('[' + n + '/' + tot + '] ' + file + ' \u2192 \u{1F464} ' + label
+                + (msg.conf > 0 ? '  ' + Math.round(msg.conf*100)+'%' : ''), 'l-face_match');
+      if (!document.getElementById('cnt-' + fkey)) {
+        const card = document.createElement('div');
+        card.className = 'res-card';
+        card.id = 'rc-' + fkey;
+        card.style.setProperty('--cat-color', '#9a70cc');
+        card.innerHTML = `
+          <div class="res-header">
+            <div class="res-label">&#128100; ${label}</div>
+            <div class="res-count" id="cnt-${fkey}">0</div>
+          </div>
+          <button class="btn-sm" onclick="openFolder('${fkey}')">&#128194; Open folder</button>
+          <div class="thumb-grid" id="tg-${fkey}"><div class="no-items">Waiting...</div></div>`;
+        document.getElementById('res-grid').appendChild(card);
+      }
+      bumpCount(fkey);
+      if (msg.thumb) addThumb(fkey, msg.thumb);
+      return;
+    }
+
+    // unsorted: no AI match — copied to Unsorted/ folder
+    if (cat === 'unsorted') {
+      appendLog('[' + n + '/' + tot + '] ' + file + ' → 📁 Unsorted', 'l-unsorted');
+      if (!document.getElementById('cnt-unsorted')) {
+        const card = document.createElement('div');
+        card.className = 'res-card';
+        card.id = 'rc-unsorted';
+        card.style.setProperty('--cat-color', '#5a5a5a');
+        card.innerHTML = `
+          <div class="res-header">
+            <div class="res-label">📁 Unsorted</div>
+            <div class="res-count" id="cnt-unsorted">0</div>
+          </div>
+          <button class="btn-sm" onclick="openFolder('unsorted')">📂 Open folder</button>
+          <div class="thumb-grid" id="tg-unsorted"><div class="no-items">No AI match</div></div>`;
+        document.getElementById('res-grid').appendChild(card);
+      }
+      bumpCount('unsorted');
+      return;
+    }
+
+    // sort / filter: AI category
+    const catDef = CATS.find(c => c.key === cat);
+    const label  = catDef ? catDef.emoji + ' ' + catDef.label.toUpperCase() : cat.toUpperCase();
+    const conf   = msg.conf > 0 ? '  ' + Math.round(msg.conf * 100) + '%' : '';
+    appendLog('[' + n + '/' + tot + '] ' + file + ' → ' + label + conf, 'l-' + cat);
+    bumpCount(cat);
+    if (msg.thumb) addThumb(cat, msg.thumb);
+  }
+
+  if (msg.type === 'log') appendLog(msg.text, 'l-info');
+
+  if (msg.type === 'done') {
+    folders = msg.results.folders || {};
+    setRunning(false);
+    setBadge('done', '✓ Done');
+    document.getElementById('prog-bar').style.width = '100%';
+
+    // Auto-populate source with output path so the user can chain scans
+    const outPath = document.getElementById('output').value.trim().replace(/\\+$/, '');
+    const doneMode = msg.results.mode || currentMode;
+    let nextSource = outPath;
+    if (doneMode === 'collect') nextSource = outPath + '\\Collected';
+    document.getElementById('source').value = nextSource;
+    document.getElementById('drive-hint').textContent =
+      '✓ Source updated — pick a subfolder or press Start to sort these results.';
+
+    const c = msg.results.counts || {};
+    const parts = Object.entries(c)
+      .filter(([k, v]) => v > 0 && k !== 'other' && k !== 'skip')
+      .map(([k, v]) => {
+        const def = CATS.find(x => x.key === k);
+        return (def ? def.emoji + ' ' : '') + k + ': ' + v;
+      });
+    appendLog('Complete — ' + (parts.join('   ') || 'nothing copied') +
+              (c.other ? '   other: ' + c.other : '') +
+              (c.skip  ? '   skipped: ' + c.skip  : ''), 'l-info');
+    evtSrc.close();
+  }
+}
+
+// ── result cards (sort / filter) ───────────────────────────────────────────
+function buildResultCards(enabledCats) {
+  const grid = document.getElementById('res-grid');
+  grid.innerHTML = '';
+  enabledCats.forEach(cat => {
+    const card = document.createElement('div');
+    card.className = 'res-card';
+    card.id = 'rc-' + cat.key;
+    card.style.setProperty('--cat-color', cat.color);
+    card.innerHTML = `
+      <div class="res-header">
+        <div class="res-label">${cat.emoji} ${cat.label}</div>
+        <div class="res-count" id="cnt-${cat.key}">0</div>
+      </div>
+      <button class="btn-sm" onclick="openFolder('${cat.key}')">📂 Open folder</button>
+      <div class="thumb-grid" id="tg-${cat.key}"><div class="no-items">Waiting…</div></div>`;
+    grid.appendChild(card);
+  });
+}
+
+function bumpCount(key) {
+  const el = document.getElementById('cnt-' + key);
+  if (el) el.textContent = parseInt(el.textContent || 0) + 1;
+}
+
+function addThumb(key, fname) {
+  const grid = document.getElementById('tg-' + key);
+  if (!grid) return;
+  if (thumbCounts[key] === 0) grid.innerHTML = '';
+  thumbCounts[key]++;
+  if (thumbCounts[key] > 80) return;
+  const img  = document.createElement('img');
+  img.src    = '/thumbs/' + fname;
+  img.title  = fname;
+  grid.appendChild(img);
+}
+
+// ── simple results (collect / date / location) ─────────────────────────────
+function bumpSimpleCount(label) {
+  simpleRows[label] = (simpleRows[label] || 0) + 1;
+  let row = document.getElementById('sr-' + CSS.escape(label));
+  if (!row) {
+    row = document.createElement('div');
+    row.className = 'simple-row';
+    row.id = 'sr-' + CSS.escape(label);
+    row.innerHTML = `
+      <span class="sr-label">${label}</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="sr-count" id="sc-${CSS.escape(label)}">1</span>
+        <button class="sr-open" onclick="openSimpleFolder('${label.replace(/'/g,"\\'")}')">📂</button>
+      </div>`;
+    document.getElementById('simple-res').appendChild(row);
+  } else {
+    const cnt = document.getElementById('sc-' + CSS.escape(label));
+    if (cnt) cnt.textContent = simpleRows[label];
+  }
+}
+
+async function openFolder(key) {
+  const f = folders[key];
+  if (!f) { alert('Run a sort first.'); return; }
+  await fetch('/api/open-folder', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({folder: f}),
+  });
+}
+
+async function openSimpleFolder(label) {
+  const output = document.getElementById('output').value.trim();
+  const folder = output + '\\' + label.replace(/\//g, '\\');
+  await fetch('/api/open-folder', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({folder}),
+  });
+}
+
+// ── helpers ────────────────────────────────────────────────────────────────
+function appendLog(text, cls) {
+  const log  = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = text;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearUI() {
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('prog-bar').style.width = '0%';
+  document.getElementById('prog-text').textContent = 'Starting…';
+  document.getElementById('res-card').style.display = 'none';
+  document.getElementById('res-grid').innerHTML = '';
+  document.getElementById('simple-res').innerHTML = '';
+  simpleRows = {};
+  CATS.forEach(c => { thumbCounts[c.key] = 0; });
+}
+
+function setRunning(on) {
+  document.getElementById('btn-start').disabled = on;
+  document.getElementById('btn-stop').disabled  = !on;
+  setBadge(on ? 'running' : 'idle', on ? '⏳ Running…' : 'Idle');
+}
+
+function setBadge(cls, text) {
+  const b = document.getElementById('badge');
+  b.className = 'badge ' + cls;
+  b.textContent = text;
+}
+
+// ── custom category ───────────────────────────────────────────────────────
+async function addCategory() {
+  const name   = document.getElementById('new-cat-name').value.trim();
+  const prompt = document.getElementById('new-cat-prompt').value.trim();
+  if (!name) { alert('Enter a category name.'); return; }
+
+  const r = await fetch('/api/categories/add', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, prompt}),
+  });
+  const cat = await r.json();
+  if (cat.error) { alert(cat.error); return; }
+
+  // Add to runtime CATS list
+  CATS.push(cat);
+  thumbCounts[cat.key] = 0;
+
+  // Create toggle in the grid (starts OFF like all others)
+  const div = document.createElement('label');
+  div.className = 'cat-toggle';
+  div.id = 'cat-' + cat.key;
+  div.style.setProperty('--cat-color', cat.color);
+  div.innerHTML = `
+    <input type="checkbox" onchange="toggleCat(this,'cat-${cat.key}')">
+    <span class="emoji">${cat.emoji}</span>
+    <span class="info">
+      <div class="name">${cat.label}</div>
+      <div class="sub">Custom / CLIP</div>
+    </span>
+    <span class="dot"></span>`;
+  document.getElementById('cat-grid').appendChild(div);
+
+  // Clear inputs
+  document.getElementById('new-cat-name').value  = '';
+  document.getElementById('new-cat-prompt').value = '';
+}
+
+
+// ── face profiles ─────────────────────────────────────────────────────────
+async function loadFaceProfiles() {
+  const r = await fetch('/api/faces');
+  const profiles = await r.json();
+  const box = document.getElementById('face-chips');
+  if (!profiles.length) {
+    box.innerHTML = '<span style="font-size:.76rem;color:#4a3a6a">No profiles yet — add one below</span>';
+    return;
+  }
+  box.innerHTML = '';
+  profiles.forEach(p => {
+    const chip = document.createElement('span');
+    chip.className = 'face-chip';
+    chip.id = 'chip-' + p.safe_name;
+    chip.innerHTML = '&#128100; ' + p.safe_name.replace(/_/g,' ')
+      + ' <span style="font-size:.7rem;color:#8a6aaa">(' + p.face_count + ')</span>'
+      + ' <span class="del" onclick="deleteFaceProfile(\''+p.safe_name+'\')">&#x2715;</span>';
+    box.appendChild(chip);
+  });
+}
+
+document.getElementById('face-files').addEventListener('change', function() {
+  const lbl = document.getElementById('face-files-label');
+  lbl.value = this.files.length ? Array.from(this.files).map(f => f.name).join(', ') : 'No files chosen';
+});
+
+async function addFaceProfile() {
+  const name  = document.getElementById('face-name').value.trim();
+  const files = document.getElementById('face-files').files;
+  const stat  = document.getElementById('face-status');
+  if (!name)  { alert('Enter a name for this person.'); return; }
+  if (!files.length) { alert('Select at least one reference photo.'); return; }
+
+  stat.textContent = 'Reading photos...';
+  stat.style.color = '#7a9a7a';
+
+  // Read files as base64
+  const images = await Promise.all(Array.from(files).map(f => new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = e => res(e.target.result);
+    reader.onerror = rej;
+    reader.readAsDataURL(f);
+  })));
+
+  stat.textContent = 'Detecting faces (may take a moment first time)...';
+  const r = await fetch('/api/faces/add', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, images}),
+  });
+  const data = await r.json();
+  if (data.error) {
+    stat.textContent = 'Error: ' + data.error;
+    stat.style.color = '#ea5a5a';
+    return;
+  }
+  stat.textContent = 'Profile saved — ' + data.face_count + ' face embedding(s) stored for ' + name + '.';
+  stat.style.color = '#5aea5a';
+  document.getElementById('face-name').value = '';
+  document.getElementById('face-files').value = '';
+  document.getElementById('face-files-label').value = 'No files chosen';
+  await loadFaceProfiles();
+}
+
+async function deleteFaceProfile(safe_name) {
+  if (!confirm('Remove face profile for ' + safe_name.replace(/_/g,' ') + '?')) return;
+  await fetch('/api/faces/delete', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({safe_name}),
+  });
+  const chip = document.getElementById('chip-' + safe_name);
+  if (chip) chip.remove();
+  await loadFaceProfiles();
+}
+
+// ── init ───────────────────────────────────────────────────────────────────
+buildCatGrid();
+setMode('collect');   // default mode: scan first
+detectDrives();
+loadFaceProfiles();
+</script>
+</body>
+</html>

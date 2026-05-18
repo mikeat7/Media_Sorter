@@ -1,0 +1,32 @@
+# AI model files — large, downloaded automatically on first run
+*.pt
+*.pth
+*.onnx
+*.bin
+
+# Face profiles — personal data, never commit
+face_profiles/
+
+# User-created categories — personal, machine-specific
+custom_categories.json
+
+# Sorted output folders
+MediaSorted/
+TrailCamera/
+thumbs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+env/
+
+# Temporary patch scripts
+_patch_*.py
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
