@@ -13,3 +13,4 @@ requests>=2.28
 ImageHash>=4.3
 reverse_geocoder>=1.5
 facenet-pytorch>=2.5
+pillow-heif>=0.16

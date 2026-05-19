@@ -30,6 +30,12 @@ from flask import Flask, render_template, request, jsonify, Response, send_from_
 import psutil, torch
 from PIL import Image, ExifTags
 
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass   # HEIC support optional — install pillow-heif to enable
+
 app = Flask(__name__)
 
 # ── paths ─────────────────────────────────────────────────────────────────────
@@ -37,8 +43,9 @@ APP_DIR            = Path(__file__).parent
 DOCS               = Path.home() / "Documents"
 MD_MODEL_PATH      = str(APP_DIR / "md_v5a.0.0.pt")
 MD_MODEL_URL       = "https://github.com/agentmorris/MegaDetector/releases/download/v5.0/md_v5a.0.0.pt"
-CUSTOM_CATS_FILE   = APP_DIR / "custom_categories.json"
-FACE_PROFILES_DIR  = APP_DIR / "face_profiles"
+CUSTOM_CATS_FILE      = APP_DIR / "custom_categories.json"
+CAT_THRESHOLDS_FILE   = APP_DIR / "category_thresholds.json"
+FACE_PROFILES_DIR     = APP_DIR / "face_profiles"
 FACE_THRESHOLD     = 0.85   # L2 distance; lower = stricter
 
 # ── constants ─────────────────────────────────────────────────────────────────
@@ -132,6 +139,19 @@ def _load_custom_categories():
 
 _load_custom_categories()
 
+# ── per-category CLIP thresholds (user-adjustable, persisted) ─────────────
+_cat_thresholds = {}   # key → absolute float threshold (overrides global CLIP_THRESHOLD)
+
+def _load_cat_thresholds():
+    global _cat_thresholds
+    if CAT_THRESHOLDS_FILE.exists():
+        try:
+            _cat_thresholds = json.loads(CAT_THRESHOLDS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+_load_cat_thresholds()
+
 
 # ── face recognition helpers ──────────────────────────────────────────────────
 FACE_PROFILES_DIR.mkdir(exist_ok=True)
@@ -219,6 +239,12 @@ _log_lock     = threading.Lock()
 _results      = {}
 _status       = "idle"
 _seen_hashes  = {}   # filename → hash string, for duplicate detection
+_ref_embedding = None   # CLIP image feature for visual similarity search
+_ref_name      = ""     # sanitised filename stem of the reference image
+_uncertain     = []     # files sorted with conf < UNCERTAIN_THRESHOLD, for review screen
+_dup_files     = []     # files placed in Duplicates/ folder, for review screen
+
+UNCERTAIN_THRESHOLD = 0.40
 
 
 def push(msg):
@@ -256,11 +282,9 @@ def load_megadetector():
     return _md_model
 
 
-def load_clip(enabled_keys):
+def load_clip(enabled_keys=None):
+    """Load CLIP model. If enabled_keys provided, also encode text prompts for those categories."""
     global _clip_model, _clip_preproc, _clip_feats
-    clip_cats = [c for c in CATEGORIES if c["detector"] == "clip" and c["key"] in enabled_keys]
-    if not clip_cats:
-        return
     with _model_lock:
         if _clip_model is None:
             push({"type": "log", "text": "Loading CLIP model (first run downloads ~350 MB)…", "cat": "info"})
@@ -270,15 +294,18 @@ def load_clip(enabled_keys):
             )
             _clip_model.eval()
             push({"type": "log", "text": "CLIP ready.", "cat": "info"})
-        import open_clip
-        tokenizer = open_clip.get_tokenizer("ViT-B-32")
-        for cat in clip_cats:
-            if cat["key"] not in _clip_feats:
-                tokens = tokenizer([cat["clip_prompt"]])
-                with torch.no_grad():
-                    feat = _clip_model.encode_text(tokens)
-                    feat = feat / feat.norm(dim=-1, keepdim=True)
-                _clip_feats[cat["key"]] = feat
+    if not enabled_keys:
+        return
+    import open_clip
+    tokenizer = open_clip.get_tokenizer("ViT-B-32")
+    clip_cats = [c for c in CATEGORIES if c["detector"] == "clip" and c["key"] in enabled_keys]
+    for cat in clip_cats:
+        if cat["key"] not in _clip_feats:
+            tokens = tokenizer([cat["clip_prompt"]])
+            with torch.no_grad():
+                feat = _clip_model.encode_text(tokens)
+                feat = feat / feat.norm(dim=-1, keepdim=True)
+            _clip_feats[cat["key"]] = feat
 
 
 # ── EXIF helpers ──────────────────────────────────────────────────────────────
@@ -449,6 +476,62 @@ def run_clip_cat(frames, category_key, threshold=CLIP_THRESHOLD):
     return best >= threshold, best
 
 
+def write_xmp_sidecar(dest_path, labels, confidence):
+    """Write an XMP sidecar file alongside dest_path with AI category tags."""
+    xmp_path = Path(dest_path).with_suffix(".xmp")
+    tags_xml = "".join(f"        <rdf:li>{lbl}</rdf:li>\n" for lbl in labels)
+    xmp = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Media Sorter">\n'
+        ' <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n'
+        '  <rdf:Description rdf:about=""\n'
+        '      xmlns:dc="http://purl.org/dc/elements/1.1/"\n'
+        '      xmlns:xmp="http://ns.adobe.com/xap/1.0/">\n'
+        '   <dc:subject>\n'
+        '    <rdf:Bag>\n'
+        f'      <rdf:li>MediaSorter</rdf:li>\n'
+        f'{tags_xml}'
+        '    </rdf:Bag>\n'
+        '   </dc:subject>\n'
+        f'   <xmp:Rating>{max(1, min(5, round(confidence * 5)))}</xmp:Rating>\n'
+        '   <xmp:CreatorTool>Media Sorter</xmp:CreatorTool>\n'
+        '  </rdf:Description>\n'
+        ' </rdf:RDF>\n'
+        '</x:xmpmeta>\n'
+    )
+    try:
+        xmp_path.write_text(xmp, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def encode_image_clip(frame):
+    """Encode a BGR frame with CLIP image encoder. Returns normalised tensor or None."""
+    if _clip_model is None or _clip_preproc is None:
+        return None
+    try:
+        img    = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        tensor = _clip_preproc(img).unsqueeze(0)
+        with torch.no_grad():
+            feat = _clip_model.encode_image(tensor)
+            feat = feat / feat.norm(dim=-1, keepdim=True)
+        return feat
+    except Exception:
+        return None
+
+
+def run_clip_similarity(frames, ref_feat, threshold=0.70):
+    """Image-to-image CLIP similarity. Returns (match, best_score)."""
+    best = 0.0
+    for frame in frames:
+        feat = encode_image_clip(frame)
+        if feat is None:
+            continue
+        sim  = float((feat @ ref_feat.T).item())
+        best = max(best, sim)
+    return best >= threshold, round(best, 3)
+
+
 # ── classify → list of all matches ───────────────────────────────────────────
 def classify_all(filepath, frames, enabled_cats, md_model, confidence, seen_hashes,
                  clip_threshold=CLIP_THRESHOLD):
@@ -499,7 +582,9 @@ def classify_all(filepath, frames, enabled_cats, md_model, confidence, seen_hash
                 matches.append((key, conf))
 
         elif det == "clip":
-            found, conf = run_clip_cat(frames, key, threshold=clip_threshold)
+            # Per-category override takes precedence over the global CLIP threshold
+            thresh = _cat_thresholds.get(key, clip_threshold)
+            found, conf = run_clip_cat(frames, key, threshold=thresh)
             if found:
                 matches.append((key, conf))
 
@@ -514,21 +599,25 @@ def classify_all(filepath, frames, enabled_cats, md_model, confidence, seen_hash
 
 # ── sort worker ───────────────────────────────────────────────────────────────
 def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
-             mode, multi_copy, filter_all):
-    global _status, _results, _seen_hashes
+             mode, multi_copy, filter_all, write_xmp=False):
+    global _status, _results, _seen_hashes, _uncertain, _dup_files
+    _uncertain = []
+    _dup_files = []
 
     out          = Path(output_dir)
     enabled_cats = [c for c in CATEGORIES if c["key"] in enabled_keys]
 
     # Load models only if needed
     need_md   = mode in ("sort","filter") and any(c["detector"]=="megadetector" for c in enabled_cats)
-    need_clip = mode in ("sort","filter") and any(c["detector"]=="clip"          for c in enabled_cats)
+    need_clip = (mode in ("sort","filter") and any(c["detector"]=="clip" for c in enabled_cats)) \
+                or mode == "similar"
 
     _status       = "loading"
     _seen_hashes  = {}
     md_model      = load_megadetector() if need_md   else None
     if md_model: md_model.conf = confidence
-    if need_clip: load_clip(enabled_keys)
+    if need_clip:
+        load_clip(enabled_keys if mode != "similar" else None)
     face_profiles = load_face_profiles() if mode in ("sort", "filter") else {}
     need_faces    = bool(face_profiles) and mode in ("sort", "filter")
     if need_faces and face_profiles:
@@ -613,6 +702,37 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
                   "label": loc.replace("_", " "), "thumb": None})
             continue
 
+        # ── SIMILAR mode: CLIP image-to-image similarity ─────────────────
+        if mode == "similar":
+            if _ref_embedding is None:
+                push({"type": "log", "text": "No reference image loaded — stopping.", "cat": "info"})
+                break
+            frames = load_frames(str(fp))
+            if not frames:
+                counts["skip"] = counts.get("skip", 0) + 1
+                push({"type": "progress", "current": i, "total": total,
+                      "file": name, "cat": "skip", "conf": 0, "thumb": None})
+                continue
+            sim_threshold = max(0.60, min(0.90, 0.70 + (confidence - 0.25) * 0.5))
+            found, sim = run_clip_similarity(frames, _ref_embedding, sim_threshold)
+            if found:
+                ref_dir = out / f"Similar_to_{_ref_name}"
+                ref_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(fp), ref_dir / name)
+                folders["similar"] = str(ref_dir)
+                counts["similar"]  = counts.get("similar", 0) + 1
+                thumbs_dir.mkdir(parents=True, exist_ok=True)
+                thumb_name = fp.stem + ".jpg"
+                small = cv2.resize(frames[0],
+                    (320, int(frames[0].shape[0] * 320 / max(frames[0].shape[1], 1))))
+                cv2.imwrite(str(thumbs_dir / thumb_name), small, [cv2.IMWRITE_JPEG_QUALITY, 75])
+                push({"type": "progress", "current": i, "total": total,
+                      "file": name, "cat": "similar", "conf": sim, "thumb": thumb_name})
+            else:
+                push({"type": "progress", "current": i, "total": total,
+                      "file": name, "cat": "other", "conf": 0, "thumb": None})
+            continue
+
         # ── SORT / FILTER mode: AI detection ─────────────────────────────
         frames = load_frames(str(fp))
         if not frames:
@@ -664,12 +784,17 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
         # Multi-copy: copy to every matched category, or just the first
         to_copy = all_matches if multi_copy else [all_matches[0]]
         thumb_saved = False
+        # Collect all matched labels for XMP (written once per destination copy)
+        all_labels = [next((c["label"] for c in CATEGORIES if c["key"] == k), k.capitalize())
+                      for k, _ in to_copy]
 
         for cat_key, conf in to_copy:
             cat_dir = out / cat_key.capitalize()
             cat_dir.mkdir(parents=True, exist_ok=True)
             folders[cat_key] = str(cat_dir)
             shutil.copy2(str(fp), cat_dir / name)
+            if write_xmp:
+                write_xmp_sidecar(cat_dir / name, all_labels, conf)
             counts[cat_key] = counts.get(cat_key, 0) + 1
             if cat_key not in thumb_map:
                 thumb_map[cat_key] = []
@@ -689,10 +814,32 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
                   "file": name, "cat": cat_key, "conf": round(conf, 2),
                   "thumb": thumb_name if not thumb_saved or cat_key == to_copy[0][0] else None})
 
+            # Track duplicate files for the duplicate review screen
+            if cat_key == "duplicate" and mode == "sort":
+                _dup_files.append({
+                    "file":   name,
+                    "folder": str(cat_dir),
+                    "thumb":  fp.stem + ".jpg",
+                })
+
+            # Track uncertain placements for the review screen
+            if 0 < conf < UNCERTAIN_THRESHOLD and mode == "sort":
+                cat_info = next((c for c in CATEGORIES if c["key"] == cat_key), {})
+                _uncertain.append({
+                    "file":      name,
+                    "folder":    str(cat_dir),
+                    "cat":       cat_key,
+                    "cat_label": cat_info.get("label", cat_key.capitalize()),
+                    "cat_emoji": cat_info.get("emoji", "📁"),
+                    "conf":      round(conf, 2),
+                    "thumb":     thumb_name,
+                })
+
         check_faces(fp, name, frames, out, i, total, face_profiles,
                     counts, folders, thumb_name)
 
-    _results = {"counts": counts, "thumbs": thumb_map, "folders": folders, "mode": mode}
+    _results = {"counts": counts, "thumbs": thumb_map, "folders": folders, "mode": mode,
+                "uncertain_count": len(_uncertain), "dup_count": len(_dup_files)}
     push({"type": "done", "results": _results})
     _status = "done"
 
@@ -739,6 +886,7 @@ def start():
     mode         = data.get("mode", "sort")          # collect|sort|filter|date|location
     multi_copy   = bool(data.get("multiCopy", False))
     filter_all   = bool(data.get("filterAll", True))
+    write_xmp    = bool(data.get("writeXmp", False))
     _stop_event  = threading.Event()
     _log         = []
     _results     = {}
@@ -746,7 +894,7 @@ def start():
     _sort_thread = threading.Thread(
         target=run_sort,
         args=(source, output, confidence, enabled_keys, file_types,
-              mode, multi_copy, filter_all),
+              mode, multi_copy, filter_all, write_xmp),
         daemon=True,
     )
     _sort_thread.start()
@@ -877,6 +1025,136 @@ def delete_face():
     if f.exists():
         f.unlink()
     return jsonify({"ok": True})
+
+
+@app.route("/api/duplicates")
+def get_duplicates():
+    return jsonify({"items": _dup_files,
+                    "trash_folder": str(Path((_results.get("folders") or {}).get(
+                        "duplicate", str(DOCS / "MediaSorted" / "Duplicate")
+                    )).parent / "Trash")})
+
+
+@app.route("/api/trash-file", methods=["POST"])
+def trash_file():
+    data       = request.json or {}
+    src_folder = data.get("from_folder", "")
+    filename   = data.get("filename",    "")
+    trash_dir  = data.get("trash_folder", "")
+    if not all([src_folder, filename, trash_dir]):
+        return jsonify({"error": "Missing parameters"}), 400
+    src = Path(src_folder) / filename
+    if not src.exists():
+        return jsonify({"error": "File not found"}), 404
+    try:
+        Path(trash_dir).mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(Path(trash_dir) / filename))
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/thresholds", methods=["GET", "POST"])
+def cat_thresholds():
+    global _cat_thresholds
+    if request.method == "POST":
+        data = request.json or {}
+        key  = data.get("key", "")
+        val  = data.get("value")        # float 0-1, or None to reset to global
+        if not key:
+            return jsonify({"error": "key required"}), 400
+        if val is None:
+            _cat_thresholds.pop(key, None)
+        else:
+            _cat_thresholds[key] = round(float(val), 3)
+        CAT_THRESHOLDS_FILE.write_text(
+            json.dumps(_cat_thresholds, indent=2), encoding="utf-8"
+        )
+        return jsonify({"ok": True, "thresholds": _cat_thresholds})
+    return jsonify(_cat_thresholds)
+
+
+@app.route("/api/uncertain")
+def get_uncertain():
+    cat_map = {c["key"]: {"label": c["label"], "emoji": c["emoji"]} for c in CATEGORIES}
+    available = []
+    for k, v in (_results.get("folders") or {}).items():
+        if k.startswith("face_") or k in ("unsorted", "skip", "other"):
+            continue
+        info = cat_map.get(k, {"label": k.capitalize(), "emoji": "📁"})
+        available.append({"key": k, "folder": v,
+                          "label": info["label"], "emoji": info["emoji"]})
+    return jsonify({"items": _uncertain, "available": available})
+
+
+@app.route("/api/move-file", methods=["POST"])
+def move_file():
+    data       = request.json or {}
+    src_folder = data.get("from_folder", "")
+    dst_folder = data.get("to_folder",   "")
+    filename   = data.get("filename",    "")
+    if not all([src_folder, dst_folder, filename]):
+        return jsonify({"error": "Missing parameters"}), 400
+    src = Path(src_folder) / filename
+    if not src.exists():
+        return jsonify({"error": "File not found — it may have already been moved"}), 404
+    try:
+        dst_dir = Path(dst_folder)
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dst_dir / filename))
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/browse")
+def browse():
+    """Return child directories of the given path for the folder picker UI."""
+    raw  = request.args.get("path", "").strip()
+    # Default: list drive letters on Windows
+    if not raw:
+        import string
+        drives = [f"{d}:\\" for d in string.ascii_uppercase
+                  if Path(f"{d}:\\").exists()]
+        return jsonify({"path": "", "dirs": drives, "is_root": True})
+    p = Path(raw)
+    if not p.exists() or not p.is_dir():
+        return jsonify({"error": "Path not found"}), 404
+    try:
+        dirs = sorted(
+            [str(child) for child in p.iterdir()
+             if child.is_dir() and not child.name.startswith(".")],
+            key=lambda s: s.lower()
+        )
+    except PermissionError:
+        dirs = []
+    return jsonify({"path": str(p), "dirs": dirs, "is_root": False})
+
+
+@app.route("/api/reference", methods=["POST"])
+def set_reference():
+    """Receive a reference image, encode it with CLIP, store for visual similarity search."""
+    global _ref_embedding, _ref_name
+    data    = request.json or {}
+    img_b64 = data.get("image", "")
+    name    = data.get("name", "reference")
+    if not img_b64:
+        return jsonify({"error": "No image provided"}), 400
+    try:
+        raw   = base64.b64decode(img_b64.split(",")[-1])
+        arr   = np.frombuffer(raw, np.uint8)
+        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if frame is None:
+            return jsonify({"error": "Could not decode image"}), 400
+        load_clip()   # ensure model loaded (image encoder only, no text features)
+        feat = encode_image_clip(frame)
+        if feat is None:
+            return jsonify({"error": "CLIP encoding failed — model may still be loading"}), 500
+        _ref_embedding = feat
+        _ref_name      = re.sub(r"[^a-zA-Z0-9_-]", "_", Path(name).stem)[:30]
+        return jsonify({"name": _ref_name})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

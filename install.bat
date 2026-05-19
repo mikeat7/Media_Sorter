@@ -31,6 +31,7 @@ echo.
 
 pip install -r "%~dp0requirements.txt"
 pip install facenet-pytorch --no-deps --quiet
+pip install pillow-heif --quiet
 
 if errorlevel 1 (
     echo.

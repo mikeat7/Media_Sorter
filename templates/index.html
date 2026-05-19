@@ -98,7 +98,8 @@ input[type=range]{flex:1;accent-color:#5aaa5a;cursor:pointer}
 .l-food{color:#ff9a5a}.l-documents{color:#9aaabb}.l-snow{color:#bbd8e8}
 .l-indoor{color:#70aacc}.l-events{color:#e84aaa}
 .l-date{color:#88ccaa}.l-location{color:#88aacc}.l-collected{color:#aaccaa}
-.l-filter_match{color:#ccee88}.l-face_match{color:#d4aaff}.l-unsorted{color:#6a6a6a}.l-other{color:#3a5a3a}.l-skip{color:#2e2e2e}
+.l-filter_match{color:#ccee88}.l-face_match{color:#d4aaff}.l-similar{color:#70eebb}
+.l-unsorted{color:#6a6a6a}.l-other{color:#3a5a3a}.l-skip{color:#2e2e2e}
 .l-info{color:#6a9a8a;font-style:italic}.l-scanning{color:#3a5a3a}
 
 /* results grid (sort / filter) */
@@ -120,6 +121,70 @@ input[type=range]{flex:1;accent-color:#5aaa5a;cursor:pointer}
 .simple-row .sr-count{font-size:1.3rem;font-weight:800;color:#5aea8a;min-width:3ch;text-align:right}
 .simple-row .sr-open{background:#1e2e1e;color:#8aaa8a;border:1px solid #2e4e2e;font-size:.74rem;padding:4px 10px;border-radius:5px;cursor:pointer}
 .simple-row .sr-open:hover{background:#253525}
+
+/* duplicate review */
+.dup-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;padding:14px}
+.dup-card{background:#111e11;border:1px solid #2a3a2a;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;transition:opacity .3s}
+.dup-card.trashed{opacity:.3;pointer-events:none}
+.dup-thumb{width:100%;aspect-ratio:4/3;object-fit:cover;background:#0a0f0a}
+.dup-info{padding:7px 9px;flex:1}
+.dup-file{font-size:.72rem;color:#7aaa7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dup-acts{padding:6px 9px;border-top:1px solid #1e2e1e;display:flex;gap:5px}
+.btn-dup-keep{flex:1;background:#1e3a1e;color:#7ada7a;border:1px solid #2e5a2e;font-size:.72rem;padding:4px 0;border-radius:5px;cursor:pointer}
+.btn-dup-keep:hover{background:#253e25}
+.btn-dup-trash{flex:1;background:#2e1a1a;color:#ea7a7a;border:1px solid #5a2a2a;font-size:.72rem;padding:4px 0;border-radius:5px;cursor:pointer}
+.btn-dup-trash:hover{background:#3e2020}
+
+/* per-category threshold panel */
+.thresh-panel{margin-top:10px;border:1px solid #2a3a2a;border-radius:7px;overflow:hidden}
+.thresh-toggle{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#111e11;cursor:pointer;font-size:.78rem;color:#5a9a5a;user-select:none}
+.thresh-toggle:hover{background:#152015}
+.thresh-toggle .arr{transition:transform .2s;font-size:.7rem}
+.thresh-toggle.open .arr{transform:rotate(90deg)}
+.thresh-body{display:none;padding:10px 12px;background:#0e160e}
+.thresh-body.open{display:block}
+.thresh-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.thresh-row:last-child{margin-bottom:0}
+.thresh-label{width:100px;font-size:.76rem;color:#8aaa8a;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thresh-val{width:38px;text-align:right;font-size:.76rem;color:#8ada8a;font-weight:700;flex-shrink:0}
+.thresh-reset{background:none;border:none;color:#3a5a3a;font-size:.8rem;cursor:pointer;padding:0 4px;flex-shrink:0}
+.thresh-reset:hover{color:#7aaa7a}
+
+/* uncertainty review cards */
+.review-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:14px}
+.review-card{background:#111e11;border:1px solid #2a3a2a;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;transition:opacity .3s}
+.review-card.resolved{opacity:.35;pointer-events:none}
+.review-thumb{width:100%;aspect-ratio:4/3;object-fit:cover;background:#0a0f0a}
+.review-thumb-ph{width:100%;aspect-ratio:4/3;background:#0a140a;display:flex;align-items:center;justify-content:center;color:#2a4a2a;font-size:2rem}
+.review-info{padding:8px 10px;flex:1}
+.review-file{font-size:.72rem;color:#7aaa7a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.review-cat{font-size:.84rem;font-weight:600;color:#c0d8c0;margin-top:3px}
+.review-conf{font-size:.74rem;margin-top:2px}
+.review-conf.low{color:#e89a5a}
+.review-conf.mid{color:#e8d45a}
+.review-acts{padding:8px 10px;border-top:1px solid #1e2e1e;display:flex;gap:6px;align-items:center}
+.btn-keep{background:#1e3a1e;color:#7ada7a;border:1px solid #2e5a2e;font-size:.74rem;padding:5px 10px;border-radius:5px;cursor:pointer;flex-shrink:0}
+.btn-keep:hover{background:#253e25}
+select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a;font-size:.74rem;padding:5px 6px;border-radius:5px;cursor:pointer}
+
+/* folder browser modal */
+.modal-backdrop{position:fixed;inset:0;background:#0009;z-index:100;display:flex;align-items:center;justify-content:center}
+.modal{background:#1c211c;border:1px solid #3a5a3a;border-radius:12px;width:min(560px,95vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 40px #000a}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #2a3a2a}
+.modal-head h3{font-size:.9rem;font-weight:700;color:#a8dca8}
+.modal-close{background:none;border:none;color:#5a8a5a;font-size:1.4rem;cursor:pointer;line-height:1;padding:2px 6px}
+.modal-close:hover{color:#e0e8e0}
+.modal-path{padding:8px 18px;font-size:.74rem;color:#5a8a6a;background:#111e11;border-bottom:1px solid #1e2e1e;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modal-body{flex:1;overflow-y:auto;padding:8px 0}
+.dir-item{display:flex;align-items:center;gap:8px;padding:9px 18px;cursor:pointer;font-size:.84rem;color:#c0d8c0;transition:background .12s}
+.dir-item:hover{background:#1e2e1e}
+.dir-item .di-arrow{width:14px;font-size:.7rem;color:#4a6a4a;flex-shrink:0;transition:transform .15s}
+.dir-item.open .di-arrow{transform:rotate(90deg)}
+.dir-item .di-icon{font-size:1rem;flex-shrink:0}
+.dir-item .di-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dir-children{padding-left:22px;border-left:1px solid #1e2e1e}
+.modal-foot{padding:12px 18px;border-top:1px solid #2a3a2a;display:flex;align-items:center;gap:10px}
+.modal-foot .selected-path{flex:1;font-size:.78rem;color:#7aaa7a;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* face profiles */
 .face-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;
@@ -150,13 +215,17 @@ input[type=range]{flex:1;accent-color:#5aaa5a;cursor:pointer}
         <label>Source folder (SD card, phone, or any folder)</label>
         <div class="field-row">
           <input type="text" id="source" placeholder="e.g. D:\DCIM\MOVIE  or  E:\Pictures">
+          <button class="btn btn-detect" onclick="openBrowser('source')" title="Browse folders">📁</button>
           <button class="btn btn-detect" onclick="detectDrives()" title="Auto-detect removable drives">🔍</button>
         </div>
         <div id="drive-hint" style="font-size:.72rem;color:#4a7a4a;margin-top:5px"></div>
       </div>
       <div>
         <label>Output / project folder</label>
-        <input type="text" id="output" value="{{ default_output }}">
+        <div class="field-row">
+          <input type="text" id="output" value="{{ default_output }}">
+          <button class="btn btn-detect" onclick="openBrowser('output')" title="Browse folders">📁</button>
+        </div>
       </div>
     </div>
 
@@ -182,6 +251,7 @@ input[type=range]{flex:1;accent-color:#5aaa5a;cursor:pointer}
       <button class="mode-btn"        data-mode="date"     onclick="setMode('date')">📅 Sort by Date</button>
       <button class="mode-btn"        data-mode="location" onclick="setMode('location')">📍 Sort by Location</button>
       <button class="mode-btn"        data-mode="filter"   onclick="setMode('filter')">🔍 Find Photos With</button>
+      <button class="mode-btn"        data-mode="similar"  onclick="setMode('similar')">🖼️ Find Similar Photos</button>
     </div>
     <div class="mode-desc" id="mode-desc"></div>
   </div>
@@ -217,6 +287,28 @@ input[type=range]{flex:1;accent-color:#5aaa5a;cursor:pointer}
       </div>
     </div>
 
+    <!-- reference image upload — shown only in similar mode -->
+    <div id="similar-section" style="display:none;margin-top:4px">
+      <div style="font-size:.78rem;color:#5a9a5a;margin-bottom:10px">
+        Upload any photo — the AI finds all photos and videos in your source folder that look visually similar. Works with any subject: animals, flowers, food, faces, landscapes, or objects.
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
+        <div style="flex:1;min-width:200px">
+          <label>Reference photo</label>
+          <input type="file" id="ref-file" accept="image/*" style="display:none">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="ref-label" placeholder="No photo selected — click Browse" readonly
+                   onclick="document.getElementById('ref-file').click()" style="cursor:pointer;flex:1">
+            <button class="btn-sm" onclick="document.getElementById('ref-file').click()">Browse</button>
+          </div>
+          <div id="ref-status" style="font-size:.74rem;color:#5a9a6a;margin-top:6px"></div>
+        </div>
+        <div id="ref-preview-wrap" style="display:none">
+          <img id="ref-preview" style="max-width:110px;max-height:110px;border-radius:6px;border:2px solid #3a6a3a;object-fit:cover">
+        </div>
+      </div>
+    </div>
+
     <!-- confidence slider — hidden in collect/date/location modes -->
     <div id="conf-section" style="margin-top:16px">
       <label>Detection confidence (AI sensitivity):&nbsp;<span class="sval" id="conf-val">25%</span></label>
@@ -228,10 +320,30 @@ input[type=range]{flex:1;accent-color:#5aaa5a;cursor:pointer}
       </div>
     </div>
 
+    <!-- per-category thresholds — collapsible, CLIP categories only -->
+    <div class="thresh-panel" id="thresh-panel" style="display:none">
+      <div class="thresh-toggle" id="thresh-toggle" onclick="toggleThreshPanel()">
+        <span>⚙️ Per-category sensitivity overrides</span>
+        <span class="arr">▶</span>
+      </div>
+      <div class="thresh-body" id="thresh-body">
+        <div style="font-size:.72rem;color:#3a6a3a;margin-bottom:10px">
+          Override the global slider for specific categories. Higher % = stricter (fewer false hits). Click ↺ to reset a category back to the global setting.
+        </div>
+        <div id="thresh-rows"><!-- built by JS --></div>
+      </div>
+    </div>
+
     <!-- multi-copy toggle — visible only in sort mode -->
     <div class="multicopy-row" id="multicopy-row" style="display:none">
       <input type="checkbox" id="multi-copy" checked>
       <span><strong>Copy to all matching categories</strong> — a file with both an animal and a person is placed in both folders</span>
+    </div>
+
+    <!-- XMP export toggle — visible only in sort mode -->
+    <div class="multicopy-row" id="xmp-row" style="display:none">
+      <input type="checkbox" id="write-xmp">
+      <span><strong>Write XMP metadata tags</strong> — creates a sidecar .xmp file for each sorted photo, readable by Lightroom and Capture One</span>
     </div>
 
     <div class="action-bar">
@@ -287,6 +399,63 @@ input[type=range]{flex:1;accent-color:#5aaa5a;cursor:pointer}
     <div class="simple-res" id="simple-res"></div>
   </div>
 
+  <!-- ── Confidence Review Modal ───────────────────────────────────────── -->
+  <div id="review-modal" class="modal-backdrop" style="display:none" onclick="closeReviewOnBackdrop(event)">
+    <div class="modal" style="width:min(880px,96vw);max-height:88vh">
+      <div class="modal-head">
+        <h3>🔎 Review Uncertain Placements</h3>
+        <button class="modal-close" onclick="closeReview()">✕</button>
+      </div>
+      <div style="padding:8px 18px;font-size:.76rem;color:#5a8a6a;border-bottom:1px solid #1e2e1e">
+        These files were sorted with less than 40% confidence — the AI's least-sure calls. Keep them where they are or move them to a better folder.
+      </div>
+      <div class="modal-body" style="padding:0;overflow-y:auto">
+        <div class="review-grid" id="review-grid"></div>
+      </div>
+      <div class="modal-foot">
+        <span id="review-remaining" style="flex:1;font-size:.78rem;color:#5a8a6a"></span>
+        <button class="btn-sm" onclick="closeReview()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Duplicate Review Modal ────────────────────────────────────────── -->
+  <div id="dup-modal" class="modal-backdrop" style="display:none" onclick="closeDupOnBackdrop(event)">
+    <div class="modal" style="width:min(920px,96vw);max-height:88vh">
+      <div class="modal-head">
+        <h3>👥 Review Duplicates</h3>
+        <button class="modal-close" onclick="closeDup()">✕</button>
+      </div>
+      <div style="padding:8px 18px;font-size:.76rem;color:#5a8a6a;border-bottom:1px solid #1e2e1e">
+        These files were flagged as duplicates or very similar photos. Keep the ones you want — trashed files move to a <strong>Trash/</strong> folder and are never permanently deleted.
+      </div>
+      <div class="modal-body" style="padding:0;overflow-y:auto">
+        <div class="dup-grid" id="dup-grid"></div>
+      </div>
+      <div class="modal-foot">
+        <span id="dup-remaining" style="flex:1;font-size:.78rem;color:#5a8a6a"></span>
+        <button class="btn-sm" onclick="closeDup()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Folder Browser Modal ──────────────────────────────────────────── -->
+  <div id="browser-modal" class="modal-backdrop" style="display:none" onclick="closeBrowserOnBackdrop(event)">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>📁 Browse Folders</h3>
+        <button class="modal-close" onclick="closeBrowser()">✕</button>
+      </div>
+      <div class="modal-path" id="browser-current-path">Select a folder below</div>
+      <div class="modal-body" id="browser-body"><!-- populated by JS --></div>
+      <div class="modal-foot">
+        <span class="selected-path" id="browser-selected-label">No folder selected</span>
+        <button class="btn-sm" onclick="closeBrowser()">Cancel</button>
+        <button class="btn btn-start" style="padding:7px 18px;font-size:.84rem" onclick="confirmBrowserSelection()">Select ✓</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- .main -->
 
 <script>
@@ -305,7 +474,8 @@ const MODE_DESCS = {
   sort:     'AI scans every file and copies it into the matching category folder. Turn on multi-copy to send a file to more than one folder when it matches multiple categories.',
   date:     'Reads the date from each photo or video and sorts into Year / Month sub-folders. Falls back to file-modified date when no metadata is present.',
   location: 'Reads GPS coordinates from each photo and sorts into City / Country folders. Photos without GPS data go into No_GPS/.',
-  filter:   'Select two or more categories — only files that match ALL of them are copied. Example: turn on Animals and People to find clips containing both.  \n\nAND logic — a file must match every selected category to be copied. Example: turn on Animals and People to find only clips that contain both.',
+  filter:   'Select two or more categories — only files that match ALL of them are copied. AND logic — a file must match every selected category to be copied. Example: turn on Animals and People to find only clips that contain both.',
+  similar:  'Upload any reference photo — the AI finds all photos and videos in your source folder that look visually similar. Works with any subject: a deer, a specific flower, a face, a dish, a landscape. Use the confidence slider to control how strict the match is.',
 };
 
 // ── mode switching ──────────────────────────────────────────────────────────
@@ -319,11 +489,21 @@ function setMode(mode) {
   document.getElementById('mode-desc').textContent = MODE_DESCS[mode] || '';
 
   const needCats = mode === 'sort' || mode === 'filter';
-  const needConf = needCats;
+  const needConf = needCats || mode === 'similar';
 
-  document.getElementById('cats-section').style.display = needCats ? '' : 'none';
-  document.getElementById('conf-section').style.display = needConf ? '' : 'none';
-  document.getElementById('multicopy-row').style.display = mode === 'sort' ? '' : 'none';
+  document.getElementById('cats-section').style.display    = needCats  ? '' : 'none';
+  document.getElementById('similar-section').style.display = mode === 'similar' ? '' : 'none';
+  document.getElementById('conf-section').style.display    = needConf  ? '' : 'none';
+  document.getElementById('thresh-panel').style.display    = needCats  ? '' : 'none';
+  document.getElementById('multicopy-row').style.display   = mode === 'sort' ? '' : 'none';
+  document.getElementById('xmp-row').style.display         = mode === 'sort' ? '' : 'none';
+
+  const confLabel = document.querySelector('#conf-section label');
+  if (confLabel) {
+    confLabel.innerHTML = mode === 'similar'
+      ? 'Similarity strictness — how closely photos must match: <span class="sval" id="conf-val">' + document.getElementById('confidence').value + '%</span>'
+      : 'Detection confidence (AI sensitivity):&nbsp;<span class="sval" id="conf-val">' + document.getElementById('confidence').value + '%</span>';
+  }
 
   const title = document.getElementById('cats-title');
   if (mode === 'filter') {
@@ -334,7 +514,8 @@ function setMode(mode) {
 
   const startBtn = document.getElementById('btn-start');
   const labels = { collect:'▶ Scan For Photos', sort:'▶ Sort By Category',
-                   date:'▶ Sort by Date', location:'▶ Sort by Location', filter:'▶ Find Photos With' };
+                   date:'▶ Sort by Date', location:'▶ Sort by Location',
+                   filter:'▶ Find Photos With', similar:'▶ Find Similar Photos' };
   startBtn.textContent = labels[mode] || '▶ Start';
 }
 
@@ -396,6 +577,7 @@ async function startSort() {
   const output     = document.getElementById('output').value.trim();
   const confidence = parseInt(document.getElementById('confidence').value) / 100;
   const multiCopy  = document.getElementById('multi-copy').checked;
+  const writeXmp   = document.getElementById('write-xmp').checked;
   const enabled    = [...document.querySelectorAll('.cat-toggle.on input')]
                        .map(cb => cb.closest('.cat-toggle').id.replace('cat-',''));
   const fileTypes  = [];
@@ -406,6 +588,9 @@ async function startSort() {
   if ((currentMode === 'sort' || currentMode === 'filter') && !enabled.length) {
     alert('Please enable at least one category.'); return;
   }
+  if (currentMode === 'similar' && !document.getElementById('ref-status').textContent.startsWith('✓')) {
+    alert('Please upload and encode a reference photo first — use the Browse button above.'); return;
+  }
 
   clearUI();
   setRunning(true);
@@ -413,7 +598,7 @@ async function startSort() {
   await fetch('/api/start', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({source, output, confidence, enabled, fileTypes,
-                          mode: currentMode, multiCopy, filterAll: true}),
+                          mode: currentMode, multiCopy, filterAll: true, writeXmp}),
   });
   listenStream();
 }
@@ -436,11 +621,27 @@ function handle(msg) {
     document.getElementById('res-card').style.display = '';
 
     const isSortLike = currentMode === 'sort' || currentMode === 'filter';
-    document.getElementById('res-grid').style.display    = isSortLike ? '' : 'none';
-    document.getElementById('simple-res').style.display  = isSortLike ? 'none' : '';
+    const isSimilar  = currentMode === 'similar';
+    document.getElementById('res-grid').style.display   = (isSortLike || isSimilar) ? '' : 'none';
+    document.getElementById('simple-res').style.display = (isSortLike || isSimilar) ? 'none' : '';
 
     if (isSortLike) {
       buildResultCards(msg.categories);
+    } else if (isSimilar) {
+      document.getElementById('res-grid').innerHTML = '';
+      const refLabel = document.getElementById('ref-label').value || 'reference photo';
+      const card = document.createElement('div');
+      card.className = 'res-card';
+      card.id = 'rc-similar';
+      card.style.setProperty('--cat-color', '#70ccaa');
+      card.innerHTML = `
+        <div class="res-header">
+          <div class="res-label">🔍 Similar to ${refLabel}</div>
+          <div class="res-count" id="cnt-similar">0</div>
+        </div>
+        <button class="btn-sm" onclick="openFolder('similar')">📂 Open folder</button>
+        <div class="thumb-grid" id="tg-similar"><div class="no-items">Scanning…</div></div>`;
+      document.getElementById('res-grid').appendChild(card);
     } else {
       simpleRows = {};
       document.getElementById('simple-res').innerHTML = '';
@@ -522,6 +723,14 @@ function handle(msg) {
       return;
     }
 
+    // visual similarity match
+    if (cat === 'similar') {
+      appendLog('[' + n + '/' + tot + '] ' + file + ' → 🔍 Similar  ' + Math.round(msg.conf * 100) + '%', 'l-similar');
+      bumpCount('similar');
+      if (msg.thumb) addThumb('similar', msg.thumb);
+      return;
+    }
+
     // sort / filter: AI category
     const catDef = CATS.find(c => c.key === cat);
     const label  = catDef ? catDef.emoji + ' ' + catDef.label.toUpperCase() : cat.toUpperCase();
@@ -547,6 +756,32 @@ function handle(msg) {
     document.getElementById('source').value = nextSource;
     document.getElementById('drive-hint').textContent =
       '✓ Source updated — pick a subfolder or press Start to sort these results.';
+
+    // Show post-sort review buttons
+    ['btn-review-uncertain', 'btn-review-dups'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
+    if (msg.results.mode === 'sort') {
+      if ((msg.results.uncertain_count || 0) > 0) {
+        const rb = document.createElement('button');
+        rb.id        = 'btn-review-uncertain';
+        rb.className = 'btn';
+        rb.style.cssText = 'background:#3a4a2a;color:#c8e888;margin-top:14px;width:100%;font-size:.86rem;padding:10px';
+        rb.innerHTML = '🔎 Review Uncertain Placements (' + msg.results.uncertain_count + ' files under 40% confidence)';
+        rb.onclick   = openReview;
+        document.getElementById('res-card').appendChild(rb);
+      }
+      if ((msg.results.dup_count || 0) > 0) {
+        const db = document.createElement('button');
+        db.id        = 'btn-review-dups';
+        db.className = 'btn';
+        db.style.cssText = 'background:#2a3a4a;color:#88c8e8;margin-top:8px;width:100%;font-size:.86rem;padding:10px';
+        db.innerHTML = '👥 Review Duplicates (' + msg.results.dup_count + ' files) — keep the best, trash the rest';
+        db.onclick   = openDupReview;
+        document.getElementById('res-card').appendChild(db);
+      }
+    }
 
     const c = msg.results.counts || {};
     const parts = Object.entries(c)
@@ -590,6 +825,7 @@ function bumpCount(key) {
 function addThumb(key, fname) {
   const grid = document.getElementById('tg-' + key);
   if (!grid) return;
+  if (!thumbCounts[key]) thumbCounts[key] = 0;
   if (thumbCounts[key] === 0) grid.innerHTML = '';
   thumbCounts[key]++;
   if (thumbCounts[key] > 80) return;
@@ -783,11 +1019,364 @@ async function deleteFaceProfile(safe_name) {
   await loadFaceProfiles();
 }
 
+// ── reference image for visual similarity ─────────────────────────────────
+document.getElementById('ref-file').addEventListener('change', async function() {
+  const file = this.files[0];
+  if (!file) return;
+  document.getElementById('ref-label').value = file.name;
+
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+
+  // Show preview thumbnail
+  document.getElementById('ref-preview').src = b64;
+  document.getElementById('ref-preview-wrap').style.display = '';
+
+  // Send to backend for CLIP encoding
+  const stat = document.getElementById('ref-status');
+  stat.textContent = 'Encoding reference image… (CLIP model loads ~350 MB first time — please wait)';
+  stat.style.color = '#8aaa8a';
+
+  try {
+    const resp = await fetch('/api/reference', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({image: b64, name: file.name}),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      stat.textContent = 'Error: ' + data.error;
+      stat.style.color = '#ea5a5a';
+    } else {
+      stat.textContent = '✓ Reference encoded — press Start to find similar photos.';
+      stat.style.color = '#5aea5a';
+    }
+  } catch (e) {
+    stat.textContent = 'Network error — is the server running?';
+    stat.style.color = '#ea5a5a';
+  }
+});
+
+// ── duplicate review ──────────────────────────────────────────────────────
+let _dupItems     = [];
+let _dupTrashDir  = '';
+
+async function openDupReview() {
+  const r    = await fetch('/api/duplicates');
+  const data = await r.json();
+  _dupItems    = (data.items || []).map(it => ({...it, _resolved: false}));
+  _dupTrashDir = data.trash_folder || '';
+  if (!_dupItems.length) { alert('No duplicates recorded from last sort.'); return; }
+  buildDupGrid();
+  document.getElementById('dup-modal').style.display = 'flex';
+}
+
+function closeDup() {
+  document.getElementById('dup-modal').style.display = 'none';
+}
+
+function closeDupOnBackdrop(e) {
+  if (e.target === document.getElementById('dup-modal')) closeDup();
+}
+
+function buildDupGrid() {
+  const grid = document.getElementById('dup-grid');
+  grid.innerHTML = '';
+  updateDupCount();
+  _dupItems.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'dup-card' + (item._resolved ? ' trashed' : '');
+    card.id = 'dcard-' + idx;
+    card.innerHTML = `
+      <img class="dup-thumb" src="/thumbs/${item.thumb}"
+           onerror="this.style.background='#0a140a';this.style.minHeight='90px'">
+      <div class="dup-info">
+        <div class="dup-file" title="${item.file}">${item.file}</div>
+      </div>
+      <div class="dup-acts">
+        <button class="btn-dup-keep"  onclick="keepDup(${idx})">✓ Keep</button>
+        <button class="btn-dup-trash" onclick="trashDup(${idx})">🗑 Trash</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function keepDup(idx) {
+  _dupItems[idx]._resolved = true;
+  document.getElementById('dcard-' + idx).classList.add('trashed');
+  updateDupCount();
+}
+
+async function trashDup(idx) {
+  const item = _dupItems[idx];
+  const r    = await fetch('/api/trash-file', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({from_folder: item.folder, filename: item.file,
+                          trash_folder: _dupTrashDir}),
+  });
+  const data = await r.json();
+  if (data.error) { alert('Could not move to Trash: ' + data.error); return; }
+  _dupItems[idx]._resolved = true;
+  document.getElementById('dcard-' + idx).classList.add('trashed');
+  updateDupCount();
+}
+
+function updateDupCount() {
+  const left = _dupItems.filter(it => !it._resolved).length;
+  document.getElementById('dup-remaining').textContent =
+    left + ' of ' + _dupItems.length + ' files remaining';
+}
+
+// ── per-category thresholds ───────────────────────────────────────────────
+let _savedThresholds = {};
+
+async function loadThresholds() {
+  const r = await fetch('/api/thresholds');
+  _savedThresholds = await r.json();
+  buildThreshRows();
+}
+
+function buildThreshRows() {
+  const container = document.getElementById('thresh-rows');
+  if (!container) return;
+  container.innerHTML = '';
+  const clipCats = CATS.filter(c => c.key !== 'duplicate' &&
+    !['ir','blur','exif','megadetector','hash'].includes(c.detector || ''));
+  // Determine current global threshold for display
+  const globalPct = parseInt(document.getElementById('confidence').value);
+
+  clipCats.forEach(cat => {
+    const override = _savedThresholds[cat.key];
+    const pct      = override !== undefined ? Math.round(override * 100) : globalPct;
+    const isCustom = override !== undefined;
+
+    const row = document.createElement('div');
+    row.className = 'thresh-row';
+    row.id = 'trow-' + cat.key;
+    row.innerHTML = `
+      <span class="thresh-label" title="${cat.label}">${cat.emoji} ${cat.label}</span>
+      <input type="range" min="5" max="80" value="${pct}" style="flex:1;accent-color:${cat.color};cursor:pointer"
+             oninput="onThreshSlide(this,'${cat.key}')"
+             onchange="saveThreshold('${cat.key}',this.value)">
+      <span class="thresh-val" id="tv-${cat.key}">${pct}%${isCustom ? '' : ' ●'}</span>
+      <button class="thresh-reset" title="Reset to global" onclick="resetThreshold('${cat.key}')">↺</button>`;
+    container.appendChild(row);
+  });
+}
+
+function onThreshSlide(slider, key) {
+  const el = document.getElementById('tv-' + key);
+  if (el) el.textContent = slider.value + '%';
+}
+
+async function saveThreshold(key, pctStr) {
+  const val = parseInt(pctStr) / 100;
+  await fetch('/api/thresholds', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key, value: val}),
+  });
+  _savedThresholds[key] = val;
+  const el = document.getElementById('tv-' + key);
+  if (el) el.textContent = pctStr + '%';
+}
+
+async function resetThreshold(key) {
+  await fetch('/api/thresholds', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key, value: null}),
+  });
+  delete _savedThresholds[key];
+  buildThreshRows();
+}
+
+function toggleThreshPanel() {
+  const toggle = document.getElementById('thresh-toggle');
+  const body   = document.getElementById('thresh-body');
+  const isOpen = toggle.classList.toggle('open');
+  body.classList.toggle('open', isOpen);
+  if (isOpen) buildThreshRows();
+}
+
+// ── confidence review ─────────────────────────────────────────────────────
+let _reviewItems     = [];
+let _reviewAvailable = [];
+
+async function openReview() {
+  const r    = await fetch('/api/uncertain');
+  const data = await r.json();
+  _reviewItems     = (data.items     || []).map(it => ({...it, _resolved: false}));
+  _reviewAvailable = data.available  || [];
+  if (!_reviewItems.length) { alert('No uncertain placements recorded.'); return; }
+  buildReviewGrid();
+  document.getElementById('review-modal').style.display = 'flex';
+}
+
+function closeReview() {
+  document.getElementById('review-modal').style.display = 'none';
+}
+
+function closeReviewOnBackdrop(e) {
+  if (e.target === document.getElementById('review-modal')) closeReview();
+}
+
+function buildReviewGrid() {
+  const grid = document.getElementById('review-grid');
+  grid.innerHTML = '';
+  updateReviewCount();
+  _reviewItems.forEach((item, idx) => {
+    const pct       = Math.round(item.conf * 100);
+    const confClass = pct < 25 ? 'low' : 'mid';
+    const thumbHtml = item.thumb
+      ? `<img class="review-thumb" src="/thumbs/${item.thumb}" onerror="this.parentNode.innerHTML='<div class=\\'review-thumb-ph\\'>📄</div>'">`
+      : `<div class="review-thumb-ph">📄</div>`;
+    const moveOpts  = _reviewAvailable
+      .filter(a => a.key !== item.cat)
+      .map(a => `<option value="${a.key}">${a.emoji} ${a.label}</option>`)
+      .join('');
+    const card = document.createElement('div');
+    card.className = 'review-card' + (item._resolved ? ' resolved' : '');
+    card.id = 'rcard-' + idx;
+    card.innerHTML = `
+      ${thumbHtml}
+      <div class="review-info">
+        <div class="review-file" title="${item.file}">${item.file}</div>
+        <div class="review-cat">${item.cat_emoji} ${item.cat_label}</div>
+        <div class="review-conf ${confClass}">Confidence: ${pct}%</div>
+      </div>
+      <div class="review-acts">
+        <button class="btn-keep" onclick="keepReviewItem(${idx})">✓ Keep</button>
+        <select class="move-sel" onchange="moveReviewItem(this,${idx})" ${moveOpts ? '' : 'disabled'}>
+          <option value="">Move to…</option>
+          ${moveOpts || '<option disabled>No other folders</option>'}
+        </select>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function keepReviewItem(idx) {
+  _reviewItems[idx]._resolved = true;
+  document.getElementById('rcard-' + idx).classList.add('resolved');
+  updateReviewCount();
+}
+
+async function moveReviewItem(sel, idx) {
+  const destKey = sel.value;
+  if (!destKey) return;
+  const item = _reviewItems[idx];
+  const dest = (_reviewAvailable.find(a => a.key === destKey) || {}).folder;
+  if (!dest) { sel.value = ''; return; }
+  const r    = await fetch('/api/move-file', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({from_folder: item.folder, to_folder: dest, filename: item.file}),
+  });
+  const data = await r.json();
+  if (data.error) { alert('Could not move file: ' + data.error); sel.value = ''; return; }
+  _reviewItems[idx]._resolved = true;
+  document.getElementById('rcard-' + idx).classList.add('resolved');
+  updateReviewCount();
+}
+
+function updateReviewCount() {
+  const left = _reviewItems.filter(it => !it._resolved).length;
+  document.getElementById('review-remaining').textContent =
+    left + ' of ' + _reviewItems.length + ' items remaining';
+}
+
+// ── folder browser ────────────────────────────────────────────────────────
+let _browserTarget = 'source';   // which input field to fill on confirm
+let _browserSelected = '';       // currently highlighted path
+
+function openBrowser(targetField) {
+  _browserTarget  = targetField;
+  _browserSelected = '';
+  document.getElementById('browser-selected-label').textContent = 'No folder selected';
+  document.getElementById('browser-current-path').textContent   = 'Select a folder below';
+  const body = document.getElementById('browser-body');
+  body.innerHTML = '<div style="padding:14px 18px;color:#4a7a4a;font-size:.8rem">Loading drives…</div>';
+  document.getElementById('browser-modal').style.display = 'flex';
+  loadDir('', body);
+}
+
+function closeBrowser() {
+  document.getElementById('browser-modal').style.display = 'none';
+}
+
+function closeBrowserOnBackdrop(e) {
+  if (e.target === document.getElementById('browser-modal')) closeBrowser();
+}
+
+function confirmBrowserSelection() {
+  if (!_browserSelected) { alert('Click a folder to select it first.'); return; }
+  document.getElementById(_browserTarget).value = _browserSelected;
+  if (_browserTarget === 'source') {
+    document.getElementById('drive-hint').textContent = '✓ Folder selected — press Start when ready.';
+  }
+  closeBrowser();
+}
+
+async function loadDir(path, container) {
+  container.innerHTML = '<div style="padding:10px 18px;color:#3a5a3a;font-size:.78rem">Loading…</div>';
+  try {
+    const url = '/api/browse' + (path ? '?path=' + encodeURIComponent(path) : '');
+    const r   = await fetch(url);
+    const data = await r.json();
+    if (data.error) {
+      container.innerHTML = `<div style="padding:10px 18px;color:#7a3a3a;font-size:.78rem">${data.error}</div>`;
+      return;
+    }
+    container.innerHTML = '';
+    if (!data.dirs.length) {
+      container.innerHTML = '<div style="padding:10px 18px;color:#3a5a3a;font-size:.78rem">No subfolders</div>';
+      return;
+    }
+    data.dirs.forEach(dirPath => {
+      const name = dirPath.replace(/.*[\\/]/, '') || dirPath;
+      const item = document.createElement('div');
+      item.className = 'dir-item';
+      item.dataset.path = dirPath;
+      item.innerHTML = `<span class="di-arrow">▶</span><span class="di-icon">📁</span><span class="di-name">${name}</span>`;
+      item.addEventListener('click', e => { e.stopPropagation(); toggleDir(item, dirPath); });
+      container.appendChild(item);
+    });
+  } catch {
+    container.innerHTML = '<div style="padding:10px 18px;color:#7a3a3a;font-size:.78rem">Could not load folder.</div>';
+  }
+}
+
+function toggleDir(item, path) {
+  // Highlight selection
+  document.querySelectorAll('.dir-item').forEach(el => el.style.background = '');
+  item.style.background = '#1e3a1e';
+  _browserSelected = path;
+  document.getElementById('browser-selected-label').textContent = path;
+  document.getElementById('browser-current-path').textContent   = path;
+
+  // Toggle expand / collapse
+  const existing = item.nextElementSibling;
+  if (existing && existing.classList.contains('dir-children')) {
+    item.classList.toggle('open');
+    existing.style.display = item.classList.contains('open') ? '' : 'none';
+    return;
+  }
+  // Expand and load children
+  item.classList.add('open');
+  const children = document.createElement('div');
+  children.className = 'dir-children';
+  item.insertAdjacentElement('afterend', children);
+  loadDir(path, children);
+}
+
 // ── init ───────────────────────────────────────────────────────────────────
 buildCatGrid();
 setMode('collect');   // default mode: scan first
 detectDrives();
 loadFaceProfiles();
+loadThresholds();
 </script>
 </body>
 </html>

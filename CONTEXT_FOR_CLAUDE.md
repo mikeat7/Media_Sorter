@@ -10,263 +10,362 @@ quick to grasp concepts, focused on practical outcomes. Prefers plain explanatio
 over jargon. Has a trail camera hobby and a broader idea for a general-purpose
 AI media sorter. Windows 11 Home, Python 3.13.5 installed.
 
+GitHub: https://github.com/mikeat7/Media_Sorter
+
 ---
 
 ## What was built
 
-A local web application that scans a folder of photos/videos, runs AI detection,
-and copies files into labelled subfolders. Started as a trail camera tool, evolved
-into a general-purpose media organiser.
+A local web application (Flask) that scans folders of photos/videos recursively,
+runs AI detection, and copies files into labelled subfolders. Fully offline,
+no accounts, no cloud. Started as a trail camera tool; now a general-purpose
+media organiser positioned against Excire Foto ($199), DigiKam, ACDSee.
 
-The app runs as a Flask web server on localhost:5000. The user opens their browser
-to use it. No cloud, no accounts, fully private.
+Key competitive advantage: user-definable CLIP categories (type a sentence,
+create a new category instantly — no retraining). No competitor offers this.
+
+Second major advantage: Visual Similarity Search — upload any reference photo,
+find all visually similar photos in any folder. Any subject, zero configuration.
 
 ---
 
 ## File map
 
 ```
-C:\Users\Dito\Documents\
-  TrailCameraApp\
-    app.py                    ← Flask backend (main program)
-    templates\index.html      ← Web UI
-    requirements.txt          ← pip dependencies
-    install.bat               ← one-time setup for new users
-    Launch Media Sorter.bat   ← daily launcher
-    README.md                 ← user manual
-    CONTEXT_FOR_CLAUDE.md     ← this file
-    custom_categories.json    ← user-created CLIP categories (auto-generated)
-    face_profiles\            ← face embeddings per person (*.npy files)
-    md_v5a.0.0.pt             ← MegaDetector model (~290 MB)
+C:\Users\Dito\Documents\TrailCameraApp\
+  app.py                      ← Flask backend (main program)
+  templates\index.html        ← Web UI
+  requirements.txt            ← pip dependencies
+  install.bat                 ← one-time setup
+  Launch Media Sorter.bat     ← daily launcher
+  MediaSorter_Setup.iss       ← Inno Setup script (compile → distributable .exe)
+  README.md                   ← user manual
+  CONTEXT_FOR_CLAUDE.md       ← this file
+  custom_categories.json      ← user-created CLIP categories (auto-generated)
+  category_thresholds.json    ← per-category CLIP threshold overrides (auto-generated)
+  face_profiles\              ← face embeddings per person (*.npy files)
+  md_v5a.0.0.pt               ← MegaDetector model (~290 MB)
 
-  trail_camera_sorter.py      ← original CLI script (backup, keep it)
+GitHub repo (distributable files only — models excluded):
+  https://github.com/mikeat7/Media_Sorter
 
-Output (configurable, default C:\MediaSorted\):
-  Animals\  People\  Night\  Damaged\  Nature\  Buildings\ etc.
-  People_Mike\  People_Sarah\  ← face recognition folders
-  Collected\                    ← Scan For Photos output
-  Unsorted\                     ← files that matched no category
-  thumbs\                       ← JPEG thumbnails for UI grid
+Output (default C:\MediaSorted\):
+  Animals\   People\   Night\   Damaged\   Nature\   etc.
+  People_Mike\              ← face recognition output
+  Similar_to_[name]\        ← visual similarity search output
+  Collected\                ← Scan For Photos output
+  Unsorted\                 ← no-match fallback
+  Trash\                    ← files moved from Duplicate Review (never auto-deleted)
+  thumbs\                   ← UI thumbnails
 ```
 
 ---
 
-## Operation modes
+## Operation modes (UI labels and internal keys)
 
-| Mode | Label in UI | What it does |
+| UI Label | Internal key | What it does |
 |---|---|---|
-| collect | Scan For Photos | Recursive scan → all files into Collected/ — no AI |
-| sort | Sort By Category | AI → category subfolders, multi-copy optional |
-| date | Sort by Date | EXIF date → Year/Month subfolders |
-| location | Sort by Location | GPS → City_CC subfolders |
-| filter | Category Matcher | AND logic — file must match ALL selected categories |
+| Scan For Photos | collect | Recursive scan → all files into Collected/ — no AI |
+| Sort By Category | sort | AI → category subfolders, multi-copy optional |
+| Sort by Date | date | EXIF date → Year/Month subfolders |
+| Sort by Location | location | GPS → City_CC subfolders |
+| Find Photos With | filter | AND logic — must match ALL selected categories |
+| Find Similar Photos | similar | Upload reference photo → CLIP image-to-image cosine similarity |
 
-Default mode on load: **Scan For Photos** (collect).
-All modes scan recursively through all subfolders of the source folder.
-Output folder is excluded from scanning to prevent re-processing sorted files.
-After any scan completes, the source field auto-updates to the output folder
-so the user can immediately chain a second scan without retyping.
+Default mode on load: Scan For Photos.
+All modes scan recursively (rglob). Output folder excluded from scan.
+After any scan: source field auto-updates to output folder for chaining.
+Collect mode: source auto-updates to output\Collected\ specifically.
 
 ---
 
 ## Detection stack
 
-### 1. Infrared / Night detection (fastest, no model)
-Channel diff: mean(|R-G| + |R-B| + |G-B|) / 3 < 8 → infrared frame.
-Majority vote across sampled frames. Always first priority.
+### 1. IR / Night (no model, fastest)
+Mean channel diff < 8 across R/G/B → infrared frame. Majority vote. Always priority 1.
 
-### 2. MegaDetector v5a (Microsoft, ~290 MB)
-YOLOv5 loaded via torch.hub (trust_repo=True). Classes: 0=animal, 1=person, 2=vehicle.
-Default confidence: 25% (slider). At 15% catches more; at 30%+ stricter.
+### 2. MegaDetector v5a (~290 MB, one-time download)
+torch.hub.load('ultralytics/yolov5', 'custom', trust_repo=True).
+Classes: 0=animal, 1=person, 2=vehicle.
+Confidence threshold: from slider (default 25%).
 
-### 3. OpenCLIP ViT-B/32 (~350 MB, downloads on first use)
-Text-image cosine similarity. Threshold scales with confidence slider:
-clip_threshold = max(0.15, 0.21 + (slider - 0.15)).
-At 25% slider → CLIP threshold = 0.31 (reduces false positives).
-Adding a new category = writing a text prompt, zero retraining.
+### 3. OpenCLIP ViT-B/32 (~350 MB, one-time download)
+Text-image cosine similarity. Global threshold scales with slider:
+  clip_threshold = max(0.15, 0.21 + (slider_value - 0.15))
+At 25% slider → 0.31 threshold (reduces false positives).
+Per-category overrides stored in category_thresholds.json (take precedence over global).
+User-definable categories: type a description → instant new category, zero retraining.
 
-### 4. Blur/Damage detection (no model)
-Laplacian variance < 80 on greyscale frame = blurry. Majority vote.
-Images only (not videos).
+### 4. Visual Similarity Search (same CLIP model, image-to-image)
+User uploads reference photo → CLIP image encoder → normalised feature vector stored in _ref_embedding.
+For each file: encode with CLIP image encoder → cosine similarity vs reference.
+Threshold: max(0.60, min(0.90, 0.70 + (confidence - 0.25) * 0.5))
+  At 25% slider → 0.70 (default). Higher slider = stricter match.
+Matches copied to Similar_to_{refname}/ folder.
 
-### 5. EXIF tag detection (no model)
-Screenshots: software field contains "screenshot" or resolution matches phone screen sizes.
-Selfies: LensModel contains "front".
-Panoramas: SceneCaptureType == 3.
+### 5. Laplacian blur (no model)
+Variance < 80 on greyscale → blurry. Images only. Majority vote.
 
-### 6. Perceptual hash — Duplicates (imagehash library)
-pHash difference ≤ 8 between frames = duplicate.
+### 6. EXIF tag detection (no model)
+Screenshots: software field or screen-resolution match.
+Selfies: LensModel contains "front". Panoramas: SceneCaptureType == 3.
 
-### 7. Facial recognition (facenet-pytorch, ~110 MB one-time download)
-MTCNN face detection + InceptionResnetV1 (VGGFace2 pretrained).
-User adds face profiles via the UI (name + 1-5 reference photos).
-L2 distance threshold: 0.85. Files with matching faces copy to People_Name/.
-Face checking is independent of category matching — runs on every file in sort mode.
-Installed with: pip install facenet-pytorch --no-deps (numpy 2.x compatibility).
-Profiles stored as: face_profiles\SafeName.npy (numpy array of embeddings).
+### 7. Perceptual hash — Duplicates (imagehash)
+pHash difference ≤ 8 = duplicate.
 
----
+### 8. Facial recognition (facenet-pytorch, ~110 MB one-time download)
+MTCNN + InceptionResnetV1 (VGGFace2). L2 threshold: 0.85.
+User adds profiles via UI (name + 1-5 photos). Stored as face_profiles\Name.npy.
+Runs independently of category matching on every file in sort mode.
+Install: pip install facenet-pytorch --no-deps (numpy 2.x workaround).
 
-## Video sampling strategy
-
-Extract frames at 2, 4, 6, 8, 10 seconds (not evenly distributed).
-Animals appear in first seconds of trail camera footage.
-Face recognition checks first 2 frames only for speed.
-Frame extraction uses actual FPS from video metadata.
-Image files: load single frame with cv2.imread.
+### 9. HEIC support
+pillow-heif registers a Pillow opener at startup (try/except — optional).
+Allows iPhone HEIC photos to be processed by all detectors.
 
 ---
 
-## Category priority order (Sort mode)
+## Video sampling
+
+Frames extracted at 2, 4, 6, 8, 10 seconds (animals appear early in trail cam footage).
+Face recognition: first 2 frames only for speed.
+FPS read from video metadata; images load as single frame.
+
+---
+
+## Category priority order
 
 1. Night / IR
-2. Damaged / Blurry (images only)
-3. Screenshots, Selfies, Panoramas (EXIF, images only)
-4. Duplicates (perceptual hash)
-5. Animals, People, Vehicles (MegaDetector)
-6. CLIP categories in list order (Pets, Nature, Sunset, Water, Buildings,
-   Flowers, Food, Documents, Snow, Indoor, Events)
-7. Custom user-created CLIP categories
-8. Unsorted/ (copied here if nothing matched — no file left behind)
+2. Damaged (images only)
+3. Screenshot, Selfie, Panorama (EXIF, images only)
+4. Duplicate (hash)
+5. Animal, Person, Vehicle (MegaDetector)
+6. Pets, Nature, Sunset, Water, Buildings, Flowers, Food, Documents, Snow, Indoor, Events (CLIP)
+7. Custom user categories (CLIP)
+8. Unsorted/ — nothing left behind
 
-Face recognition runs independently AFTER the above — always checked in sort mode.
-Multi-copy: when ON, file goes to ALL matched category folders, not just first.
+Face profiles: independent pass after above, always runs in sort mode.
+Multi-copy (default ON): file copied to every matched folder.
 
 ---
 
 ## UI details
 
-- Dark forest theme, category toggles, file type pills (Videos / Photos)
-- Default: all categories OFF, multi-copy ON, confidence 25%
-- Custom category form at bottom of category grid (name + description → CLIP prompt)
-- Face Profiles card: name + file upload → stores embeddings, chips show saved profiles
-- After scan completes: source field auto-updates to output folder for chaining
-- Collect mode: source auto-updates to output\Collected\ specifically
-- Folder open button uses shell start command for foreground focus
-- Phone / tablet access: http://[local-IP]:5000 on same WiFi
+- Dark forest theme (#141814 background)
+- Default: categories ALL OFF, multi-copy ON, confidence 25%
+- Mode bar: 6 buttons — Scan For Photos is default
+- Category grid: colour-coded toggles, ● coloured = will sort / ● grey = skip
+- Custom category form: name + description → new CLIP toggle
+- Per-category threshold panel: collapsible ⚙️ section, sliders per CLIP category, saved to JSON
+- Face Profiles card: name + file upload → embeddings stored → chip UI
+- Find Similar Photos: file upload → CLIP encodes reference → scan finds visually similar
+- After sort: "Review Uncertain Placements" button if any file sorted < 40% confidence
+- After sort: "Review Duplicates" button if duplicates found — keep/trash grid, files go to Trash/ (never deleted)
+- XMP sidecar export: optional checkbox — writes .xmp file alongside each sorted photo
+- Folder browser: 📁 button on source and output fields — click-to-navigate tree modal
+- After scan: source field auto-populated from output
+- Open folder: uses shell start for foreground focus
+- Phone access: http://[local-IP]:5000 on same WiFi
 
 ---
 
-## Key technical decisions
+## Competitive landscape (researched May 2026)
 
-**torch.hub for MegaDetector:** MegaDetector is YOLOv5 format; ultralytics YOLO class
-only loads v8+. trust_repo=True avoids interactive prompt.
+| App | Price | Custom AI cats | Offline | Folder export | Face |
+|---|---|---|---|---|---|
+| Excire Foto | $199 | ✗ | ✓ | ✗ | ✓ |
+| DigiKam | Free | ✗ | ✓ | partial | ✓ |
+| ACDSee | $80/yr | ✗ | ✓ | ✗ | ✓ |
+| Mylio | $100/yr | ✗ | ✓ | ✗ | ✓ |
+| Google Photos | Free | ✗ | ✗ | ✗ | ✓ |
+| **Media Sorter** | **Free** | **✓** | **✓** | **✓** | **✓** |
 
-**CLIP threshold scales with slider:** At 15% slider → 0.21 similarity.
-At 25% → 0.31 (reduces false positives like karaoke mic in Food folder).
-Formula: clip_threshold = max(0.15, 0.21 + (confidence - 0.15)).
-
-**facenet-pytorch --no-deps:** Requires numpy<2.0 but works fine with numpy 2.x.
-Install with --no-deps to skip the constraint check.
-
-**Recursive rglob:** All modes now scan recursively through subfolders.
-Output folder excluded from scan to prevent processing already-sorted files.
-
-**No deletion policy:** Nothing is ever deleted. Unmatched files → Unsorted/.
-Blurry/corrupted → Damaged/. User reviews and deletes manually.
-
-**host='0.0.0.0':** Flask binds to all interfaces for phone/tablet access on WiFi.
-
-**Windows case-insensitive FS fix (historical):** Original CLI used dedup dict
-{p.name.upper(): p} to avoid counting same file twice via glob("*.MP4") and
-glob("*.mp4"). No longer needed with rglob("*") + suffix check.
+User complaints across all competitors: cloud dependency, no folder output,
+no custom categories, AI mis-tagging with no review workflow, two-tool workflow
+(organise + edit), false positives with no correction path.
 
 ---
 
-## Current state (as of May 2026)
+## Current state (May 2026)
 
-### Working and tested:
-- Full web UI with mode selector, category toggles, live log, thumbnails
-- MegaDetector: animals, people, vehicles — confirmed working (deer 89%, person 93%)
-- IR/Night detection — confirmed working
-- 5-frame sampling at 2,4,6,8,10 seconds
+### Phase 1 — FULLY BUILT, awaiting first complete test pass
+
+All features implemented. First end-to-end test pass has not yet been done.
+After testing, fix any bugs found, then move to Phase 2 (Android).
+
+### Features implemented (test each):
+- MegaDetector: animals, people, vehicles
+- IR/Night detection
+- 5-frame video sampling at 2,4,6,8,10 sec
 - Flask server, SSE streaming, thumbnail serving
-- Collect/Sort/Date/Location/Filter modes all implemented
-- Recursive folder scanning
-- Auto-populate source from output after scan completes
-- Custom CLIP categories (persisted to custom_categories.json)
-- Face profiles UI (add/delete) — code complete, not yet tested end-to-end
-- Unsorted/ folder for unmatched files
+- All 6 modes implemented (including Find Similar Photos)
+- Recursive scanning with output exclusion
+- Auto-populate source from output after scan
+- Custom CLIP categories (persisted to JSON)
+- Per-category CLIP threshold overrides (collapsible panel, persisted to JSON)
+- Face profiles UI — add by photo, sort creates People_Name/ folders
+- Unsorted/ fallback folder
 - Multi-copy toggle (default ON)
-- Confidence slider controls both MegaDetector and CLIP threshold
-- Open folder brings window to foreground via shell start
+- Confidence slider controls MegaDetector + CLIP
+- Find Similar Photos — CLIP image-to-image cosine similarity
+- Confidence Review Screen — post-sort grid of uncertain placements (<40%), keep/move
+- Duplicate Review Screen — post-sort grid, keep/trash (Trash/ folder, never auto-deleted)
+- HEIC support (iPhone photos via pillow-heif)
+- XMP sidecar export (optional, writes .xmp alongside each sorted photo)
+- Folder browser — 📁 click-to-navigate modal for source and output fields
+- Open folder button brings Explorer to foreground
+- Phone access: http://[local-IP]:5000
+- GitHub repo live: https://github.com/mikeat7/Media_Sorter
+- Inno Setup script ready to compile: MediaSorter_Setup.iss
 
-### Not yet tested:
-- Face recognition end-to-end (facenet-pytorch installed and imported OK)
-- CLIP categories on diverse real-world photos (partial test — false positives at 15%)
-- Blur detection end-to-end
-- install.bat on a fresh machine
-- By Date / By Location modes on photos with GPS/EXIF
-
----
-
-## Future ideas (in rough priority order)
-
-### 1. "Find Photos Like This" (visual similarity search)
-Upload any reference photo → CLIP encodes it → finds all photos with similar
-visual embedding. Works for specific flowers, food dishes, specific dogs, scenes.
-Implementation: new route /api/find-similar, encode reference with CLIP,
-compare against each file's image embedding, threshold ~0.85 cosine similarity.
-No new models needed — uses existing CLIP infrastructure.
-
-### 2. Per-category confidence thresholds
-Some categories need looser settings (Animals on trail cam = 15%),
-others need stricter (Food, Buildings = 30%+).
-UI: expandable per-category slider, or presets ("Trail Camera" vs "General Photos").
-
-### 3. Tune CLIP prompts based on real-world results
-Food at 15%: karaoke mic and fashion photo triggered false matches.
-Tighter prompts ("a photo of plated food or a meal being eaten") may help.
-Consider adding negative prompts if CLIP API supports them.
-
-### 4. PyInstaller single .exe for distribution
-~2-3 GB bundle but plug-and-play for non-technical users.
-Challenge: PyTorch + CLIP + facenet models are large.
-Consider: installer that downloads models separately post-install.
-
-### 5. HEIC support (iPhone photos)
-Needs pillow-heif package. Install: pip install pillow-heif.
-Add to IMAGE_EXTS and handle in load_frames().
-
-### 6. Subfolder results in UI
-When scanning a folder with subfolders, show which subfolder each file came from
-in the log. Useful for understanding where photos originated.
-
-### 7. Source folder tree browser
-Instead of typing a path, let the user browse folders in the UI.
-Flask route: /api/browse?path=C:\ returns directory listing.
-Simple tree UI with clickable folders.
-
-### 8. Duplicate detection improvements
-Current: perceptual hash of first frame only.
-Better: compare across all sampled frames, flag near-duplicates.
-Consider: separate "Duplicates" review UI showing pairs side by side.
-
-### 9. Android / iOS app
-React Native or Flutter wrapper around a local Flask server.
-Or: hosted version with cloud processing (different privacy model).
-Gap in market: no offline, folder-based, configurable sorter on mobile.
-
-### 10. Facial recognition improvements
-- Allow multiple profiles to match the same photo (multi-copy for faces)
-- Confidence display per match
-- "Unknown faces" folder for detected faces that don't match any profile
-- Option to name unknown faces from the UI
+### How to compile the installer (developer step, done once per release):
+1. Download Inno Setup 6 free from https://jrsoftware.org/isdl.php
+2. Open MediaSorter_Setup.iss in Inno Setup
+3. Press F9 (or Build → Compile)
+4. Output: dist\MediaSorter_Setup.exe (~5 MB)
+5. Upload that .exe to GitHub → Releases → Create new release
+End users download and run the .exe — they never touch Inno Setup or Python setup.
 
 ---
 
-## Packages installed (on Michael's machine)
+## IMPLEMENTATION PLAN
 
-All installed to user directory (no admin needed):
+---
+
+### PHASE 1 — PC App: Complete & Polished ✅ BUILT
+
+All 10 steps implemented. Needs one complete test pass before declaring done.
+
+| Step | Feature | Status |
+|---|---|---|
+| 1 | Validate everything end-to-end | ⏳ Test now |
+| 2 | Visual Similarity Search | ✅ |
+| 3 | Confidence Review Screen | ✅ |
+| 4 | HEIC support | ✅ |
+| 5 | Per-category confidence thresholds | ✅ |
+| 6 | Duplicate/Burst Review UI | ✅ |
+| 7 | Source folder browser | ✅ |
+| 8 | XMP sidecar export | ✅ |
+| 9 | Inno Setup installer script | ✅ |
+| 10 | Polish and documentation | After testing |
+
+**Phase 1 complete definition:**
+All 6 modes tested and working. All review screens functional. HEIC, XMP, folder browser,
+custom categories, face recognition all working. Installer compiles and installs cleanly.
+
+---
+
+### PHASE 2 — Android App (Google Play)
+*Goal: a native Android app with full feature parity, publishable on Google Play.*
+
+**Architecture decision (recommended: Flutter + on-device models)**
+
+Option A — WiFi bridge (easiest, limited):
+  Phone app connects to PC running Media Sorter. Works on home WiFi only.
+  Publish as a "companion app." Fast to build but not standalone.
+
+Option B — Flutter + on-device AI (recommended):
+  Flutter app runs natively on Android. Models converted to TFLite/ONNX format
+  and bundled with the app. Fully offline, no PC required. Publishable on Play Store.
+  Estimated app size: ~800 MB with models (acceptable for modern phones).
+
+**Step 2-1 — Model conversion**
+- MegaDetector v5a: export to ONNX → convert to TFLite via ONNX-TF
+- OpenCLIP ViT-B/32: export text/image encoders to ONNX separately
+- facenet: already has TFLite weights available
+- Estimated effort: 2-3 sessions
+
+**Step 2-2 — Flutter project setup**
+- Flutter SDK installation and Android Studio setup
+- Project structure: lib/screens/, lib/models/, lib/services/
+- Android permissions: READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE, CAMERA
+- Target: Android 10+ (API 29+)
+- Estimated effort: 1 session
+
+**Step 2-3 — Core scan and sort features**
+- Folder picker → recursive media scan
+- ONNX Runtime for Android → run MegaDetector and CLIP inference
+- Same category logic as PC version (ported to Dart)
+- Output folder creation and file copy
+- Progress screen with live results
+- Estimated effort: 3-4 sessions
+
+**Step 2-4 — Face profiles on mobile**
+- Camera capture or gallery picker for reference photos
+- TFLite facenet inference on-device
+- Store embeddings in local SQLite database
+- Estimated effort: 1-2 sessions
+
+**Step 2-5 — Visual similarity search on mobile**
+- Same CLIP image-to-image approach as PC
+- Reference photo picker → encode → scan library
+- Estimated effort: 1 session
+
+**Step 2-6 — Google Play Store submission**
+- Create Play Console account ($25 one-time)
+- App signing and release build
+- Store listing: screenshots, description, privacy policy (required — app processes photos locally, nothing uploaded)
+- Estimated effort: 1 session
+
+**Step 2-7 — iOS version (App Store)**
+- Flutter builds for iOS with minimal additional work once Android is done
+- Requires Mac and Apple Developer account ($99/yr)
+- Estimated effort: 1-2 sessions
+
+---
+
+## Key technical decisions (running log)
+
+**torch.hub for MegaDetector:** YOLOv5 format; ultralytics YOLO class loads v8 only.
+trust_repo=True avoids interactive terminal prompt.
+
+**CLIP threshold scales with confidence slider:**
+clip_threshold = max(0.15, 0.21 + (confidence - 0.15)).
+At 25% → 0.31. Reduces false positives (karaoke mic in Food, etc.).
+Per-category overrides in _cat_thresholds dict take precedence over global.
+
+**Visual similarity threshold:**
+sim_threshold = max(0.60, min(0.90, 0.70 + (confidence - 0.25) * 0.5))
+At 25% slider → 0.70. Image-to-image cosine is higher than text-image.
+
+**Uncertain threshold:** UNCERTAIN_THRESHOLD = 0.40. Files sorted below this appear
+in the Review Uncertain screen after sort. Catch-and-review, not catch-and-reject.
+
+**Duplicate Trash:** Files moved from duplicate review go to output\Trash\ folder.
+Never auto-deleted — user always has final say.
+
+**XMP sidecar:** Written as plain XML alongside each sorted copy (no library needed).
+Contains dc:subject keywords (category labels) and xmp:Rating (scaled from confidence).
+File: photo.xmp sits next to photo.jpg in the destination folder.
+
+**facenet-pytorch --no-deps:** Package declares numpy<2.0 requirement but runs
+fine on numpy 2.4.3. Install with --no-deps to skip the constraint check.
+
+**Recursive rglob:** All modes scan recursively. Output folder excluded via
+str(p).upper().startswith(out_upper) check to prevent re-processing sorted files.
+
+**No deletion policy:** Nothing auto-deleted. Unmatched → Unsorted/.
+Blurry → Damaged/. Trash/ folder is a holding area, not auto-emptied.
+
+**HEIC registration:** pillow_heif.register_heif_opener() called at import time
+inside try/except — app starts normally if pillow-heif is not installed.
+
+**host='0.0.0.0':** Flask binds all interfaces for phone/tablet access on WiFi.
+
+**shell=True for open folder:** Routes through Windows start command which
+grants foreground window focus. Direct subprocess.Popen(["explorer"]) opens behind browser.
+
+---
+
+## Packages installed on Michael's machine
+
 flask, opencv-python, torch (CPU), ultralytics, open-clip-torch,
-pillow, psutil, numpy (2.4.3), pandas, seaborn, tqdm, requests,
+pillow, pillow-heif, psutil, numpy (2.4.3), pandas, seaborn, tqdm, requests,
 ImageHash, reverse_geocoder, facenet-pytorch (2.6.0, --no-deps)
 
-YOLOv5 hub code: C:\Users\Dito\.cache\torch\hub\ultralytics_yolov5_master\
+Python: C:\Python313\ (system install, on PATH)
+YOLOv5 hub cache: C:\Users\Dito\.cache\torch\hub\ultralytics_yolov5_master\
 CLIP model cache: C:\Users\Dito\.cache\
-facenet models: downloaded to torch cache on first face profile add
-
-Python: C:\Python313\ (system install, added to PATH)
 
 ---
 
@@ -275,5 +374,5 @@ Python: C:\Python313\ (system install, added to PATH)
 Tell Claude: "Read CONTEXT_FOR_CLAUDE.md in C:\Users\Dito\Documents\TrailCameraApp\
 and continue the Media Sorter project."
 
-Most useful first action in a new session: check what the user last tested,
-then verify that feature works before adding anything new.
+Always read this file before starting. Check current state section first —
+test what is built before adding anything new.
