@@ -666,7 +666,15 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
         if mode == "collect":
             dest = out / "Collected"
             dest.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(str(fp), dest / name)
+            # Avoid overwriting files with the same name from different subfolders
+            dest_file = dest / name
+            if dest_file.exists():
+                stem, suffix = fp.stem, fp.suffix
+                counter = 1
+                while dest_file.exists():
+                    dest_file = dest / f"{stem}_{counter}{suffix}"
+                    counter += 1
+            shutil.copy2(str(fp), dest_file)
             counts["collected"] = counts.get("collected", 0) + 1
             push({"type": "progress", "current": i, "total": total,
                   "file": name, "cat": "collected", "conf": 0, "thumb": None})
@@ -792,9 +800,16 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
             cat_dir = out / cat_key.capitalize()
             cat_dir.mkdir(parents=True, exist_ok=True)
             folders[cat_key] = str(cat_dir)
-            shutil.copy2(str(fp), cat_dir / name)
+            dest_file = cat_dir / name
+            if dest_file.exists():
+                stem, suffix = fp.stem, fp.suffix
+                counter = 1
+                while dest_file.exists():
+                    dest_file = cat_dir / f"{stem}_{counter}{suffix}"
+                    counter += 1
+            shutil.copy2(str(fp), dest_file)
             if write_xmp:
-                write_xmp_sidecar(cat_dir / name, all_labels, conf)
+                write_xmp_sidecar(dest_file, all_labels, conf)
             counts[cat_key] = counts.get(cat_key, 0) + 1
             if cat_key not in thumb_map:
                 thumb_map[cat_key] = []
