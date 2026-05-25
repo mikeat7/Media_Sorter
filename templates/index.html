@@ -199,10 +199,18 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
 
 <header>
   <div style="font-size:2rem;line-height:1">📷</div>
-  <div>
+  <div style="flex:1">
     <h1>Media Sorter</h1>
     <p>AI-powered photo &amp; video organiser — works on SD cards, phones, or any folder</p>
   </div>
+  <a href="/help" target="_blank"
+     style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;
+            border:1px solid #3a5a3a;background:#111e11;color:#7aaa7a;font-size:.84rem;
+            font-weight:600;text-decoration:none;transition:all .15s;white-space:nowrap"
+     onmouseover="this.style.background='#1a2e1a';this.style.color='#a8dca8'"
+     onmouseout="this.style.background='#111e11';this.style.color='#7aaa7a'">
+    📖 Help
+  </a>
 </header>
 
 <div class="main">
@@ -223,9 +231,11 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
       <div>
         <label>Output / project folder</label>
         <div class="field-row">
-          <input type="text" id="output" value="{{ default_output }}">
+          <input type="text" id="output" placeholder="e.g. C:\MediaSorted  or  D:\sorted_pictures"
+                 oninput="scheduleSpaceCheck()" onchange="checkDiskSpace()">
           <button class="btn btn-detect" onclick="openBrowser('output')" title="Browse folders">📁</button>
         </div>
+        <div id="disk-hint" style="font-size:.72rem;margin-top:5px;color:#4a6a4a"></div>
       </div>
     </div>
 
@@ -246,12 +256,14 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
   <div class="card">
     <div class="card-title">Operation Mode</div>
     <div class="mode-bar">
-      <button class="mode-btn active" data-mode="collect"  onclick="setMode('collect')">📷 Scan For Photos</button>
+      <button class="mode-btn" data-mode="collect"  onclick="setMode('collect')">📷 Scan For Media</button>
       <button class="mode-btn"        data-mode="sort"     onclick="setMode('sort')">🔀 Sort By Category</button>
       <button class="mode-btn"        data-mode="date"     onclick="setMode('date')">📅 Sort by Date</button>
       <button class="mode-btn"        data-mode="location" onclick="setMode('location')">📍 Sort by Location</button>
       <button class="mode-btn"        data-mode="filter"   onclick="setMode('filter')">🔍 Find Photos With</button>
       <button class="mode-btn"        data-mode="similar"  onclick="setMode('similar')">🖼️ Find Similar Photos</button>
+      <button class="mode-btn"        data-mode="dedupe"   onclick="setMode('dedupe')">🔁 Find Duplicates</button>
+      <button class="mode-btn"        data-mode="event"    onclick="setMode('event')">🗓️ Sort by Event</button>
     </div>
     <div class="mode-desc" id="mode-desc"></div>
   </div>
@@ -291,6 +303,7 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
     <div id="similar-section" style="display:none;margin-top:4px">
       <div style="font-size:.78rem;color:#5a9a5a;margin-bottom:10px">
         Upload any photo — the AI finds all photos and videos in your source folder that look visually similar. Works with any subject: animals, flowers, food, faces, landscapes, or objects.
+        <span style="color:#7a7a5a"> Use a higher confidence (50%+) for stricter matches; lower for broader searches.</span>
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
         <div style="flex:1;min-width:200px">
@@ -300,6 +313,7 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
             <input type="text" id="ref-label" placeholder="No photo selected — click Browse" readonly
                    onclick="document.getElementById('ref-file').click()" style="cursor:pointer;flex:1">
             <button class="btn-sm" onclick="document.getElementById('ref-file').click()">Browse</button>
+            <button class="btn-sm" id="ref-clear-btn" onclick="clearReference()" style="display:none;color:#ea7a7a;border-color:#5a2a2a">✕ Clear</button>
           </div>
           <div id="ref-status" style="font-size:.74rem;color:#5a9a6a;margin-top:6px"></div>
         </div>
@@ -346,6 +360,18 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
       <span><strong>Write XMP metadata tags</strong> — creates a sidecar .xmp file for each sorted photo, readable by Lightroom and Capture One</span>
     </div>
 
+    <!-- Date-in-category toggle — visible only in sort mode -->
+    <div class="multicopy-row" id="date-in-cat-row" style="display:none">
+      <input type="checkbox" id="date-in-cat">
+      <span><strong>Include date in folder path</strong> — files go into <em>Animals/2024/June/</em> instead of flat <em>Animals/</em></span>
+    </div>
+
+    <!-- Copy unmatched toggle — visible only in sort mode -->
+    <div class="multicopy-row" id="unsorted-row" style="display:none">
+      <input type="checkbox" id="copy-unsorted">
+      <span><strong>Copy non-matching files to Unsorted/</strong> — <span style="color:#7aaa7a">check this for a full-library sort</span>; leave OFF for targeted searches (e.g. find all cake photos without copying everything else)</span>
+    </div>
+
     <div class="action-bar">
       <button class="btn btn-start" id="btn-start" onclick="startSort()">▶ Start</button>
       <button class="btn btn-stop"  id="btn-stop"  onclick="stopSort()" disabled>■ Stop</button>
@@ -356,7 +382,18 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
 
   <!-- Face Profiles -->
   <div class="card" id="faces-card">
-    <div class="card-title">Face Profiles &mdash; sorts photos by recognised person</div>
+    <div class="card-title">Face Profiles &mdash; register people, then sort finds their photos automatically</div>
+
+    <div style="font-size:.78rem;color:#5a7a9a;background:#0e1420;border-left:3px solid #3a4a7a;padding:8px 12px;border-radius:4px;margin-bottom:12px;line-height:1.6">
+      <strong style="color:#8aaacc">How this works:</strong>
+      <ol style="margin:5px 0 0 16px;color:#6a8aaa">
+        <li><strong>Add a person below</strong> — upload 1–5 clear face photos and click Add 👤. This registers their face (stores a mathematical fingerprint). You only do this once per person.</li>
+        <li><strong>Run Sort By Category</strong> — face recognition runs automatically alongside the AI categories. Photos of registered people are copied to <em>People_Mike/</em>, <em>People_Sarah/</em> etc.</li>
+      </ol>
+      <div style="margin-top:8px">
+        <button class="btn-sm" style="color:#8aaacc;border-color:#3a4a7a" onclick="setMode('sort');window.scrollTo({top:0,behavior:'smooth'})">→ Switch to Sort By Category to find faces</button>
+      </div>
+    </div>
 
     <div id="face-chips" style="margin-bottom:10px;min-height:32px">
       <span style="font-size:.76rem;color:#4a3a6a">No profiles yet &mdash; add one below</span>
@@ -463,24 +500,40 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
 const CATS = {{ categories | tojson }};
 
 // ── state ──────────────────────────────────────────────────────────────────
-let currentMode  = 'sort';
+let currentMode        = 'sort';
+let _lastNonSimilarConf = 25;   // remember slider value when switching away from similar
 let folders      = {};
 let thumbCounts  = {};
 let simpleRows   = {};   // label → count, for collect/date/location
 let evtSrc       = null;
 
 const MODE_DESCS = {
-  collect:  'Scans all photos and videos from your source folder — including every subfolder — and gathers them into one Collected/ folder. Run this first to pull everything together, then use Sort By Category on the result.',
+  collect:  'Scans all photos and videos from your source folder — including every subfolder — and gathers them into one Collected/ folder. Use this to pull everything together from a camera card or nested backup folders, then use Sort By Category on the result.',
   sort:     'AI scans every file and copies it into the matching category folder. Turn on multi-copy to send a file to more than one folder when it matches multiple categories.',
   date:     'Reads the date from each photo or video and sorts into Year / Month sub-folders. Falls back to file-modified date when no metadata is present.',
   location: 'Reads GPS coordinates from each photo and sorts into City / Country folders. Photos without GPS data go into No_GPS/.',
   filter:   'Select two or more categories — only files that match ALL of them are copied. AND logic — a file must match every selected category to be copied. Example: turn on Animals and People to find only clips that contain both.',
   similar:  'Upload any reference photo — the AI finds all photos and videos in your source folder that look visually similar. Works with any subject: a deer, a specific flower, a face, a dish, a landscape. Use the confidence slider to control how strict the match is.',
+  dedupe:   'Scans every file and separates them into two folders: Unique/ (one copy of each photo) and Duplicates/ (extras you can review and delete). Uses perceptual hashing — catches identical or near-identical images even if renamed or slightly re-saved. No AI models required — very fast.',
+  event:    'Groups your photos into events based on time gaps. Any break of more than 8 hours between consecutive photos starts a new event. Each event becomes a folder named by date (e.g. Event_2024-06-15). Great for automatically separating a camping trip, a birthday party, and a Sunday walk that all live in the same folder.',
 };
 
 // ── mode switching ──────────────────────────────────────────────────────────
 function setMode(mode) {
+  const oldMode = currentMode;
   currentMode = mode;
+
+  // Adjust confidence slider when entering / leaving Find Similar Photos
+  const slider  = document.getElementById('confidence');
+  const confVal = document.getElementById('conf-val');
+  if (mode === 'similar' && oldMode !== 'similar') {
+    _lastNonSimilarConf = parseInt(slider.value);
+    slider.value = 50;
+    confVal.textContent = '50%';
+  } else if (mode !== 'similar' && oldMode === 'similar') {
+    slider.value = _lastNonSimilarConf;
+    confVal.textContent = _lastNonSimilarConf + '%';
+  }
 
   document.querySelectorAll('.mode-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === mode);
@@ -491,12 +544,14 @@ function setMode(mode) {
   const needCats = mode === 'sort' || mode === 'filter';
   const needConf = needCats || mode === 'similar';
 
-  document.getElementById('cats-section').style.display    = needCats  ? '' : 'none';
-  document.getElementById('similar-section').style.display = mode === 'similar' ? '' : 'none';
-  document.getElementById('conf-section').style.display    = needConf  ? '' : 'none';
-  document.getElementById('thresh-panel').style.display    = needCats  ? '' : 'none';
-  document.getElementById('multicopy-row').style.display   = mode === 'sort' ? '' : 'none';
-  document.getElementById('xmp-row').style.display         = mode === 'sort' ? '' : 'none';
+  document.getElementById('cats-section').style.display      = needCats  ? '' : 'none';
+  document.getElementById('similar-section').style.display   = mode === 'similar' ? '' : 'none';
+  document.getElementById('conf-section').style.display      = needConf  ? '' : 'none';
+  document.getElementById('thresh-panel').style.display      = needCats  ? '' : 'none';
+  document.getElementById('multicopy-row').style.display     = mode === 'sort' ? '' : 'none';
+  document.getElementById('xmp-row').style.display           = mode === 'sort' ? '' : 'none';
+  document.getElementById('date-in-cat-row').style.display   = mode === 'sort' ? '' : 'none';
+  document.getElementById('unsorted-row').style.display      = mode === 'sort' ? '' : 'none';
 
   const confLabel = document.querySelector('#conf-section label');
   if (confLabel) {
@@ -513,17 +568,30 @@ function setMode(mode) {
   }
 
   const startBtn = document.getElementById('btn-start');
-  const labels = { collect:'▶ Scan For Photos', sort:'▶ Sort By Category',
+  if (!mode) {
+    document.getElementById('mode-desc').textContent = '← Select an operation mode above to get started.';
+    startBtn.textContent = '▶ Select a mode above';
+    startBtn.disabled = true;
+    return;
+  }
+  startBtn.disabled = false;
+  const labels = { collect:'▶ Scan For Media', sort:'▶ Sort By Category',
                    date:'▶ Sort by Date', location:'▶ Sort by Location',
-                   filter:'▶ Find Photos With', similar:'▶ Find Similar Photos' };
+                   filter:'▶ Find Photos With', similar:'▶ Find Similar Photos',
+                   dedupe:'▶ Find Duplicates', event:'▶ Sort by Event' };
   startBtn.textContent = labels[mode] || '▶ Start';
 }
 
 // ── build category toggle UI ───────────────────────────────────────────────
 function buildCatGrid() {
-  const grid = document.getElementById('cat-grid');
+  const grid    = document.getElementById('cat-grid');
+  const noConf  = new Set(['ir','blur','exif','hash']);   // detectors unaffected by confidence slider
   CATS.forEach(cat => {
     thumbCounts[cat.key] = 0;
+    const fixedRule = noConf.has(cat.detector || '');
+    const subHtml   = fixedRule
+      ? `${cat.key.charAt(0).toUpperCase()+cat.key.slice(1)}/ <span title="Fixed rule — confidence slider has no effect on this category" style="color:#4a5a4a;font-size:.65rem;cursor:help">⚙ fixed rule</span>`
+      : `${cat.key.charAt(0).toUpperCase()+cat.key.slice(1)}/`;
     const div = document.createElement('label');
     div.className = 'cat-toggle';
     div.id = 'cat-' + cat.key;
@@ -533,7 +601,7 @@ function buildCatGrid() {
       <span class="emoji">${cat.emoji}</span>
       <span class="info">
         <div class="name">${cat.label}</div>
-        <div class="sub">${cat.key.charAt(0).toUpperCase()+cat.key.slice(1)}/</div>
+        <div class="sub">${subHtml}</div>
       </span>
       <span class="dot"></span>`;
     grid.appendChild(div);
@@ -551,6 +619,59 @@ function setAll(on) {
     cb.checked = on;
     toggleCat(cb, cb.closest('.cat-toggle').id);
   });
+}
+
+// ── disk space check ──────────────────────────────────────────────────────
+let _spaceTimer = null;
+function scheduleSpaceCheck() {
+  clearTimeout(_spaceTimer);
+  _spaceTimer = setTimeout(checkDiskSpace, 800);
+}
+
+function fmtBytes(b) {
+  if (b >= 1e12) return (b/1e12).toFixed(1) + ' TB';
+  if (b >= 1e9)  return (b/1e9).toFixed(1)  + ' GB';
+  if (b >= 1e6)  return (b/1e6).toFixed(1)  + ' MB';
+  return Math.round(b/1e3) + ' KB';
+}
+
+async function checkDiskSpace() {
+  const output = document.getElementById('output').value.trim();
+  const hint   = document.getElementById('disk-hint');
+  if (!output) { hint.textContent = ''; return; }
+  try {
+    const r    = await fetch('/api/diskspace?path=' + encodeURIComponent(output));
+    const data = await r.json();
+    if (data.error) { hint.textContent = ''; return; }
+    const freeGB = data.free / 1e9;
+    if (freeGB < 5) {
+      hint.innerHTML = `⚠️ <strong style="color:#ea7a3a">${fmtBytes(data.free)} free</strong> on this drive — very low. Sorts may fail if output fills up.`;
+    } else if (freeGB < 20) {
+      hint.innerHTML = `⚠️ <strong style="color:#ddaa44">${fmtBytes(data.free)} free</strong> on this drive — may not be enough for a large library sort.`;
+    } else {
+      hint.innerHTML = `<span style="color:#4a7a5a">💾 ${fmtBytes(data.free)} free on output drive.</span>`;
+    }
+  } catch { hint.textContent = ''; }
+}
+
+async function confirmIfLowSpace() {
+  // Called before starting — returns true if OK to proceed
+  const output = document.getElementById('output').value.trim();
+  if (!output) return true;
+  try {
+    const r    = await fetch('/api/diskspace?path=' + encodeURIComponent(output));
+    const data = await r.json();
+    if (data.error) return true;
+    const freeGB = data.free / 1e9;
+    if (freeGB < 5) {
+      return confirm(
+        `⚠️  Only ${fmtBytes(data.free)} free on the output drive.\n\n` +
+        `Sorting a large library needs roughly as much free space as your source files.\n\n` +
+        `The sort may fail mid-way if the drive fills up. Continue anyway?`
+      );
+    }
+  } catch { /* ignore */ }
+  return true;
 }
 
 // ── drive detection ────────────────────────────────────────────────────────
@@ -578,13 +699,27 @@ async function startSort() {
   const confidence = parseInt(document.getElementById('confidence').value) / 100;
   const multiCopy  = document.getElementById('multi-copy').checked;
   const writeXmp   = document.getElementById('write-xmp').checked;
+  const dateInCat    = document.getElementById('date-in-cat').checked;
+  const copyUnsorted = document.getElementById('copy-unsorted').checked;
   const enabled    = [...document.querySelectorAll('.cat-toggle.on input')]
                        .map(cb => cb.closest('.cat-toggle').id.replace('cat-',''));
   const fileTypes  = [];
   if (document.querySelector('#pill-video input').checked) fileTypes.push('video');
   if (document.querySelector('#pill-image input').checked) fileTypes.push('image');
 
+  if (!currentMode) { alert('Please select an operation mode first.'); return; }
   if (!source) { alert('Please enter a source folder path.'); return; }
+  if (!output) { alert('Please enter an output / project folder path.'); return; }
+  // Reject relative paths — must start with a drive letter (e.g. C:\) to prevent
+  // the app silently creating folders inside its own directory.
+  if (!/^[A-Za-z]:\\/.test(output)) {
+    alert('Output path must be an absolute path starting with a drive letter (e.g. D:\\sorted_pictures).\n\nWhat you entered:\n' + output);
+    return;
+  }
+  if (!/^[A-Za-z]:\\/.test(source)) {
+    alert('Source path must be an absolute path starting with a drive letter (e.g. C:\\Users\\Dito\\Pictures).\n\nWhat you entered:\n' + source);
+    return;
+  }
   if ((currentMode === 'sort' || currentMode === 'filter') && !enabled.length) {
     alert('Please enable at least one category.'); return;
   }
@@ -592,13 +727,18 @@ async function startSort() {
     alert('Please upload and encode a reference photo first — use the Browse button above.'); return;
   }
 
+  // Warn if output drive is nearly full before committing
+  const okSpace = await confirmIfLowSpace();
+  if (!okSpace) return;
+
   clearUI();
   setRunning(true);
 
   await fetch('/api/start', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({source, output, confidence, enabled, fileTypes,
-                          mode: currentMode, multiCopy, filterAll: true, writeXmp}),
+                          mode: currentMode, multiCopy, filterAll: true, writeXmp,
+                          dateInCat, copyUnsorted}),
   });
   listenStream();
 }
@@ -622,8 +762,9 @@ function handle(msg) {
 
     const isSortLike = currentMode === 'sort' || currentMode === 'filter';
     const isSimilar  = currentMode === 'similar';
+    const isSimple   = !isSortLike && !isSimilar;   // collect, date, location, dedupe, event
     document.getElementById('res-grid').style.display   = (isSortLike || isSimilar) ? '' : 'none';
-    document.getElementById('simple-res').style.display = (isSortLike || isSimilar) ? 'none' : '';
+    document.getElementById('simple-res').style.display = isSimple ? '' : 'none';
 
     if (isSortLike) {
       buildResultCards(msg.categories);
@@ -748,21 +889,23 @@ function handle(msg) {
     setBadge('done', '✓ Done');
     document.getElementById('prog-bar').style.width = '100%';
 
-    // Auto-populate source with output path so the user can chain scans
-    const outPath = document.getElementById('output').value.trim().replace(/\\+$/, '');
+    // Show a chain-scan hint (opt-in — don't auto-change the source field)
+    const outPath  = document.getElementById('output').value.trim().replace(/\\+$/, '');
     const doneMode = msg.results.mode || currentMode;
-    let nextSource = outPath;
-    if (doneMode === 'collect') nextSource = outPath + '\\Collected';
-    document.getElementById('source').value = nextSource;
-    document.getElementById('drive-hint').textContent =
-      '✓ Source updated — pick a subfolder or press Start to sort these results.';
+    let nextSource = (doneMode === 'collect') ? outPath + '\\Collected' : outPath;
+    const hint = document.getElementById('drive-hint');
+    hint.innerHTML =
+      '✓ Complete. To chain another scan, '
+      + '<span style="color:#5aea5a;cursor:pointer;text-decoration:underline" '
+      + 'onclick="document.getElementById(\'source\').value=\'' + nextSource.replace(/\\/g,'\\\\') + '\';this.parentNode.textContent=\'✓ Source set to: ' + nextSource.replace(/\\/g,'\\\\') + '\'">'
+      + 'click here to use ' + nextSource + ' as source</span>.';
 
     // Show post-sort review buttons
     ['btn-review-uncertain', 'btn-review-dups'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.remove();
     });
-    if (msg.results.mode === 'sort') {
+    if (msg.results.mode === 'sort' || msg.results.mode === 'dedupe') {
       if ((msg.results.uncertain_count || 0) > 0) {
         const rb = document.createElement('button');
         rb.id        = 'btn-review-uncertain';
@@ -1051,15 +1194,27 @@ document.getElementById('ref-file').addEventListener('change', async function() 
     if (data.error) {
       stat.textContent = 'Error: ' + data.error;
       stat.style.color = '#ea5a5a';
+      document.getElementById('ref-clear-btn').style.display = 'none';
     } else {
       stat.textContent = '✓ Reference encoded — press Start to find similar photos.';
       stat.style.color = '#5aea5a';
+      document.getElementById('ref-clear-btn').style.display = '';
     }
   } catch (e) {
     stat.textContent = 'Network error — is the server running?';
     stat.style.color = '#ea5a5a';
   }
 });
+
+// ── clear reference image ─────────────────────────────────────────────────
+async function clearReference() {
+  await fetch('/api/reference/clear', {method: 'POST'});
+  document.getElementById('ref-label').value       = '';
+  document.getElementById('ref-status').textContent = '';
+  document.getElementById('ref-preview-wrap').style.display = 'none';
+  document.getElementById('ref-clear-btn').style.display    = 'none';
+  document.getElementById('ref-file').value = '';
+}
 
 // ── duplicate review ──────────────────────────────────────────────────────
 let _dupItems     = [];
@@ -1316,6 +1471,9 @@ function confirmBrowserSelection() {
   if (_browserTarget === 'source') {
     document.getElementById('drive-hint').textContent = '✓ Folder selected — press Start when ready.';
   }
+  if (_browserTarget === 'output') {
+    checkDiskSpace();
+  }
   closeBrowser();
 }
 
@@ -1373,10 +1531,11 @@ function toggleDir(item, path) {
 
 // ── init ───────────────────────────────────────────────────────────────────
 buildCatGrid();
-setMode('collect');   // default mode: scan first
+setMode('');   // no default — user must choose a mode
 detectDrives();
 loadFaceProfiles();
 loadThresholds();
+// checkDiskSpace() called when user types or browses to an output path
 </script>
 </body>
 </html>

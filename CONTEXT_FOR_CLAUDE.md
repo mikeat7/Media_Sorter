@@ -65,24 +65,40 @@ Output (default C:\MediaSorted\):
 
 | UI Label | Internal key | What it does |
 |---|---|---|
-| Scan For Photos | collect | Recursive scan → all files into Collected/ — no AI |
+| Scan For Media | collect | Recursive scan → all files into Collected/ — no AI |
 | Sort By Category | sort | AI → category subfolders, multi-copy optional |
 | Sort by Date | date | EXIF date → Year/Month subfolders |
 | Sort by Location | location | GPS → City_CC subfolders |
 | Find Photos With | filter | AND logic — must match ALL selected categories |
 | Find Similar Photos | similar | Upload reference photo → CLIP image-to-image cosine similarity |
+| Find Duplicates | dedupe | pHash scan → Unique/ and Duplicates/ — no AI, single-pass, very fast |
+| Sort by Event | event | EXIF date sort → time-gap clustering (>8hr gap = new event) → Event_YYYY-MM-DD/ folders |
 
-Default mode on load: Scan For Photos.
+Default mode on load: NONE — user must click a mode button to begin.
+Start button reads "▶ Select a mode above" and is disabled until a mode is chosen.
 All modes scan recursively (rglob). Output folder excluded from scan.
-After any scan: source field auto-updates to output folder for chaining.
-Collect mode: source auto-updates to output\Collected\ specifically.
+Auto-source-update REMOVED — source field never changes automatically after a scan
+(was confusing; replaced with a clickable opt-in hint text shown after scan completes).
+
+**Sort mode extra option: Date in category path**
+Checkbox "Include date in folder path" in Sort mode.
+When ON: files go to Animals/2024/June/ instead of flat Animals/.
+Backend param: dateInCat (bool). In run_sort: date_in_cat=False default.
+folders[cat_key] always stores top-level category folder (not date subfolder) for the Open button.
+
+**Workflow note (IMPORTANT):**
+Always launch from C:\Users\Dito\Documents\TrailCameraApp\Launch Media Sorter.bat
+That is the live development copy. The installed version in AppData is a frozen snapshot
+for distributing to others. After code changes, close browser tab, Ctrl+C terminal, re-run bat.
 
 ---
 
 ## Detection stack
 
 ### 1. IR / Night (no model, fastest)
-Mean channel diff < 8 across R/G/B → infrared frame. Majority vote. Always priority 1.
+Mean channel diff < 12 across R/G/B → infrared frame. Majority vote. Always priority 1.
+(Threshold raised from 8 → 12 to catch trail-cam photos with slight IR LED red cast.
+B&W / grayscale photos always match this rule by design — zero channel difference.)
 
 ### 2. MegaDetector v5a (~290 MB, one-time download)
 torch.hub.load('ultralytics/yolov5', 'custom', trust_repo=True).
@@ -110,8 +126,12 @@ Variance < 80 on greyscale → blurry. Images only. Majority vote.
 Screenshots: software field or screen-resolution match.
 Selfies: LensModel contains "front". Panoramas: SceneCaptureType == 3.
 
-### 7. Perceptual hash — Duplicates (imagehash)
-pHash difference ≤ 8 = duplicate.
+### 7. Duplicate detection (split by file type)
+**Videos**: exact-copy fingerprint — file size + MD5 of first and last 1 MB (compute_quick_hash).
+  Two videos with matching (size, hash) tuple are byte-for-byte identical → true duplicate.
+  pHash was abandoned for videos: trail cameras are stationary, so any two clips of the
+  same duration produce nearly identical perceptual hashes regardless of content.
+**Images**: pHash difference ≤ 8 = duplicate (catches same photo re-saved at different quality).
 
 ### 8. Facial recognition (facenet-pytorch, ~110 MB one-time download)
 MTCNN + InceptionResnetV1 (VGGFace2). L2 threshold: 0.85.
@@ -152,8 +172,14 @@ Multi-copy (default ON): file copied to every matched folder.
 ## UI details
 
 - Dark forest theme (#141814 background)
-- Default: categories ALL OFF, multi-copy ON, confidence 25%
-- Mode bar: 6 buttons — Scan For Photos is default
+- Default: categories ALL OFF, multi-copy ON, confidence 25% (auto-bumps to 50% when entering Find Similar Photos, restores on exit)
+- Copy non-matching to Unsorted/: checkbox, default OFF (skips unmatched files instead of bulk-copying)
+- Include date in folder path: Sort mode checkbox — Animals/2024/June/ instead of flat Animals/
+- Disk space indicator: shown next to Output field; pre-start warning if <5GB free
+- Reference photo Clear button (✕ Clear): resets CLIP reference in Find Similar Photos
+- "⚙ fixed rule" badge on Night/IR, Damaged, EXIF, Duplicates categories (confidence slider has no effect)
+- 📖 Help button in header: opens built-in reference manual at /help in new tab
+- Mode bar: 8 buttons — no default selected on load (user must choose)
 - Category grid: colour-coded toggles, ● coloured = will sort / ● grey = skip
 - Custom category form: name + description → new CLIP toggle
 - Per-category threshold panel: collapsible ⚙️ section, sliders per CLIP category, saved to JSON
@@ -163,7 +189,7 @@ Multi-copy (default ON): file copied to every matched folder.
 - After sort: "Review Duplicates" button if duplicates found — keep/trash grid, files go to Trash/ (never deleted)
 - XMP sidecar export: optional checkbox — writes .xmp file alongside each sorted photo
 - Folder browser: 📁 button on source and output fields — click-to-navigate tree modal
-- After scan: source field auto-populated from output
+- After scan: clickable hint text offers to update source to output (opt-in, not automatic)
 - Open folder: uses shell start for foreground focus
 - Phone access: http://[local-IP]:5000 on same WiFi
 
@@ -188,17 +214,31 @@ no custom categories, AI mis-tagging with no review workflow, two-tool workflow
 
 ## Current state (May 2026)
 
-### Phase 1 — FULLY BUILT, awaiting first complete test pass
+### Phase 1 — FULLY BUILT, active testing in progress
 
-All features implemented. First end-to-end test pass has not yet been done.
-After testing, fix any bugs found, then move to Phase 2 (Android).
+All features implemented and bug-fixed. Active final testing in progress.
+
+**Modes tested and confirmed working:**
+- Find Duplicates (dedupe) — videos exact-copy, images pHash. Full 1926-file library: 1302 unique, 624 duplicates, all correct.
+- Scan For Media (collect) — confirmed working
+- NetworkError / multi-scan hang — root cause identified and fixed (see Key technical decisions)
+
+**Modes not yet tested (continue from here):**
+- Sort By Category (sort) — AI detection, MegaDetector + CLIP
+- Sort by Date (date) — EXIF → Year/Month folders
+- Sort by Location (location) — GPS → City folders
+- Find Photos With (filter) — AND logic multi-category
+- Find Similar Photos (similar) — CLIP image-to-image
+- Sort by Event (event) — time-gap clustering
+
+Continue testing remaining modes, then move to Phase 2 (Android).
 
 ### Features implemented (test each):
 - MegaDetector: animals, people, vehicles
 - IR/Night detection
 - 5-frame video sampling at 2,4,6,8,10 sec
 - Flask server, SSE streaming, thumbnail serving
-- All 6 modes implemented (including Find Similar Photos)
+- All 8 modes implemented (including Find Similar Photos, Find Duplicates, Sort by Event)
 - Recursive scanning with output exclusion
 - Auto-populate source from output after scan
 - Custom CLIP categories (persisted to JSON)
@@ -208,6 +248,9 @@ After testing, fix any bugs found, then move to Phase 2 (Android).
 - Multi-copy toggle (default ON)
 - Confidence slider controls MegaDetector + CLIP
 - Find Similar Photos — CLIP image-to-image cosine similarity
+- Find Duplicates mode — pHash scan → Unique/ and Duplicates/ folders (no AI, no deletion)
+- Sort by Event mode — EXIF date sort + 8hr gap clustering → Event_YYYY-MM-DD/ folders
+- Date within Category — checkbox in Sort mode → Animals/2024/June/ subfolder structure
 - Confidence Review Screen — post-sort grid of uncertain placements (<40%), keep/move
 - Duplicate Review Screen — post-sort grid, keep/trash (Trash/ folder, never auto-deleted)
 - HEIC support (iPhone photos via pillow-heif)
@@ -250,7 +293,7 @@ All 10 steps implemented. Needs one complete test pass before declaring done.
 | 10 | Polish and documentation | After testing |
 
 **Phase 1 complete definition:**
-All 6 modes tested and working. All review screens functional. HEIC, XMP, folder browser,
+All 8 modes tested and working. All review screens functional. HEIC, XMP, folder browser,
 custom categories, face recognition all working. Installer compiles and installs cleanly.
 
 ---
@@ -334,6 +377,16 @@ in the Review Uncertain screen after sort. Catch-and-review, not catch-and-rejec
 **Duplicate Trash:** Files moved from duplicate review go to output\Trash\ folder.
 Never auto-deleted — user always has final say.
 
+**Video dedupe — pHash abandoned:** pHash was originally used for all files including videos.
+Trail cameras are stationary so any two clips of the same duration produce nearly identical
+perceptual hashes of the background → massive false positives (mink.MP4, groundhog.MOV etc.
+all incorrectly flagged as duplicates of trail cam clips).
+Fix: videos now use compute_quick_hash() → (file_size, md5_of_first+last_1MB) tuple.
+Same file copied/renamed = identical bytes = caught. Different recordings = different size = safe.
+Images keep pHash (correct for detecting same photo re-saved at different JPEG quality).
+Validated with 18-file controlled test: 14 unique correctly → Unique, 4 duplicates correctly → Duplicates.
+Full library test (~2000 videos) running at time of handoff.
+
 **XMP sidecar:** Written as plain XML alongside each sorted copy (no library needed).
 Contains dc:subject keywords (category labels) and xmp:Rating (scaled from confidence).
 File: photo.xmp sits next to photo.jpg in the destination folder.
@@ -343,6 +396,10 @@ fine on numpy 2.4.3. Install with --no-deps to skip the constraint check.
 
 **Recursive rglob:** All modes scan recursively. Output folder excluded via
 str(p).upper().startswith(out_upper) check to prevent re-processing sorted files.
+Exception: if source is a subfolder of output (e.g. source=D:\sorted\Unique, output=D:\sorted),
+the exclusion is bypassed because rglob is already scoped to source — no re-processing can occur.
+Implemented via source_inside_output flag in the file-gathering block of run_sort.
+Only exact-same-path (source == output) still correctly returns 0 files.
 
 **No deletion policy:** Nothing auto-deleted. Unmatched → Unsorted/.
 Blurry → Damaged/. Trash/ folder is a holding area, not auto-emptied.
@@ -354,6 +411,26 @@ inside try/except — app starts normally if pillow-heif is not installed.
 
 **shell=True for open folder:** Routes through Windows start command which
 grants foreground window focus. Direct subprocess.Popen(["explorer"]) opens behind browser.
+
+**NetworkError / thread-pool exhaustion fix (May 2026):**
+Root cause: Flask dev server uses one thread per request (threaded=True). The SSE stream
+at /api/stream holds a long-lived connection for the full duration of a scan. If the browser
+did not cleanly close the previous SSE connection (common with Firefox/Chrome EventSource
+reconnect behaviour), old SSE generator threads piled up across re-runs, exhausting the
+thread pool. New requests to /api/start or /api/stream then timed out → browser reported
+"NetworkError when attempting to fetch resource."
+
+Three changes in app.py:
+1. _scan_id counter — incremented in /api/start on every new scan. Each SSE generator
+   captures my_id = _scan_id at connect time; exits immediately if _scan_id != my_id.
+   Stale generators from previous scans free their threads the instant a new scan starts.
+2. GeneratorExit handler — try/except GeneratorExit in the generator so browser-side
+   disconnect is always handled cleanly.
+3. _run_sort_safe wrapper — wraps run_sort() in try/except; on crash pushes
+   [ERROR] log message + done event and forces _status = 'done', so the SSE generator
+   always terminates even if run_sort throws an unhandled exception.
+
+Result: no restart required between scans. Multiple scans in the same session work reliably.
 
 ---
 

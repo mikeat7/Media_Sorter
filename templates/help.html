@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Media Sorter — Reference Manual</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#141814;color:#d0e0d0;min-height:100vh;line-height:1.65}
+
+a{color:#7acea8;text-decoration:none}
+a:hover{text-decoration:underline;color:#a8dca8}
+
+/* ── layout ── */
+.page{display:flex;min-height:100vh}
+.sidebar{width:260px;flex-shrink:0;background:#0e120e;border-right:1px solid #1e2e1e;position:sticky;top:0;height:100vh;overflow-y:auto;padding:20px 0}
+.content{flex:1;max-width:820px;padding:40px 48px 80px;min-width:0}
+@media(max-width:760px){
+  .page{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:static;padding:14px 0}
+  .content{padding:24px 18px 60px}
+}
+
+/* ── sidebar ── */
+.sidebar-title{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#3a5a3a;padding:0 20px 10px}
+.toc-group{margin-bottom:6px}
+.toc-group-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#2e4e2e;padding:8px 20px 4px}
+.toc-link{display:block;padding:5px 20px 5px 28px;font-size:.80rem;color:#5a8a6a;transition:all .12s;border-left:2px solid transparent}
+.toc-link:hover{color:#a8dca8;background:#111e11;text-decoration:none}
+.toc-link.top{padding-left:20px;color:#6a9a7a;font-weight:600}
+
+/* ── header ── */
+.back-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:6px;border:1px solid #2a4a2a;background:#111511;color:#6a9a6a;font-size:.82rem;margin-bottom:28px;transition:all .15s}
+.back-btn:hover{background:#1a2e1a;color:#a8dca8;text-decoration:none}
+.doc-header{border-bottom:2px solid #1e3e1e;padding-bottom:20px;margin-bottom:36px}
+.doc-header h1{font-size:1.7rem;font-weight:800;color:#a8dca8;margin-bottom:6px}
+.doc-header p{color:#5a8a6a;font-size:.9rem}
+
+/* ── sections ── */
+.section{margin-bottom:52px}
+h2{font-size:1.25rem;font-weight:700;color:#88cc99;border-bottom:1px solid #1e3e1e;padding-bottom:8px;margin-bottom:18px;scroll-margin-top:20px}
+h3{font-size:1rem;font-weight:700;color:#a8dca8;margin:22px 0 10px;scroll-margin-top:20px}
+h4{font-size:.88rem;font-weight:700;color:#8aaa8a;margin:16px 0 7px}
+p{margin-bottom:12px;color:#b0c8b0}
+ul,ol{margin:0 0 12px 22px;color:#b0c8b0}
+li{margin-bottom:5px}
+strong{color:#d0e8d0}
+
+/* ── callout boxes ── */
+.note{background:#0e1e0e;border-left:3px solid #3a6a3a;padding:12px 16px;border-radius:0 6px 6px 0;margin:14px 0;font-size:.88rem;color:#8aaa8a}
+.tip{background:#0e180e;border-left:3px solid #5aaa5a;padding:12px 16px;border-radius:0 6px 6px 0;margin:14px 0;font-size:.88rem;color:#7acc7a}
+.warn{background:#1a140a;border-left:3px solid #aa7a2a;padding:12px 16px;border-radius:0 6px 6px 0;margin:14px 0;font-size:.88rem;color:#cc9a4a}
+.note strong,.tip strong,.warn strong{font-weight:700}
+
+/* ── mode cards ── */
+.mode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin:16px 0}
+.mode-card{background:#111e11;border:1px solid #2a3a2a;border-radius:8px;padding:14px 16px}
+.mode-card .mc-icon{font-size:1.4rem;margin-bottom:6px}
+.mode-card .mc-name{font-size:.88rem;font-weight:700;color:#c0d8c0;margin-bottom:4px}
+.mode-card .mc-desc{font-size:.76rem;color:#5a7a5a;line-height:1.5}
+
+/* ── category table ── */
+.cat-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:14px 0}
+.cat-table th{text-align:left;color:#4a7a5a;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid #1e2e1e;padding:6px 10px}
+.cat-table td{padding:7px 10px;border-bottom:1px solid #141e14;color:#a0bca0;vertical-align:top}
+.cat-table tr:hover td{background:#111811}
+.cat-table .tag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.68rem;font-weight:700}
+.tag-ai{background:#1a2e1a;color:#5aea5a;border:1px solid #2a5a2a}
+.tag-fixed{background:#1a1a2e;color:#7a7aff;border:1px solid #2a2a5a}
+.tag-exif{background:#2e1a2a;color:#cc7acc;border:1px solid #5a2a5a}
+
+/* ── steps ── */
+.steps{counter-reset:step;list-style:none;margin:0 0 16px;padding:0}
+.steps li{counter-increment:step;display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
+.steps li::before{content:counter(step);min-width:24px;height:24px;border-radius:50%;background:#1a3a2a;border:1px solid #3a6a4a;color:#5aea7a;font-size:.75rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.steps li .sc{color:#b0c8b0;font-size:.88rem}
+
+/* ── inline code ── */
+code{background:#0e180e;border:1px solid #1e2e1e;border-radius:3px;padding:1px 6px;font-family:"Cascadia Code","Consolas",monospace;font-size:.82em;color:#88dda8}
+
+/* ── comparison table ── */
+.comp-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:14px 0}
+.comp-table th{background:#0e180e;color:#5a9a6a;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;padding:8px 12px;text-align:left;border-bottom:2px solid #1e3e1e}
+.comp-table td{padding:8px 12px;border-bottom:1px solid #141e14;color:#9abaa0}
+.comp-table td:first-child{color:#c0d8c0;font-weight:600}
+.yes{color:#5aea7a}
+.no{color:#5a5a5a}
+.med{color:#ddaa44}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<!-- ── Sidebar TOC ─────────────────────────────────────────────────── -->
+<nav class="sidebar">
+  <div class="sidebar-title">Reference Manual</div>
+
+  <div class="toc-group">
+    <a class="toc-link top" href="#overview">Overview</a>
+    <a class="toc-link top" href="#starting">Starting &amp; stopping</a>
+    <a class="toc-link top" href="#quickstart">Quick Start</a>
+  </div>
+
+  <div class="toc-group">
+    <div class="toc-group-label">Modes</div>
+    <a class="toc-link" href="#mode-collect">Scan For Media</a>
+    <a class="toc-link" href="#mode-sort">Sort By Category</a>
+    <a class="toc-link" href="#mode-date">Sort by Date</a>
+    <a class="toc-link" href="#mode-location">Sort by Location</a>
+    <a class="toc-link" href="#mode-filter">Find Photos With</a>
+    <a class="toc-link" href="#mode-similar">Find Similar Photos</a>
+    <a class="toc-link" href="#mode-dedupe">Find Duplicates</a>
+    <a class="toc-link" href="#mode-event">Sort by Event</a>
+  </div>
+
+  <div class="toc-group">
+    <div class="toc-group-label">Features</div>
+    <a class="toc-link" href="#categories">Categories explained</a>
+    <a class="toc-link" href="#confidence">Confidence slider</a>
+    <a class="toc-link" href="#faces">Face Profiles</a>
+    <a class="toc-link" href="#custom-cats">Custom categories</a>
+    <a class="toc-link" href="#thresholds">Per-category thresholds</a>
+    <a class="toc-link" href="#multicopy">Multi-copy</a>
+    <a class="toc-link" href="#xmp">XMP metadata export</a>
+    <a class="toc-link" href="#review">Review screens</a>
+    <a class="toc-link" href="#browser">Folder browser</a>
+    <a class="toc-link" href="#phone">Phone &amp; tablet access</a>
+  </div>
+
+  <div class="toc-group">
+    <div class="toc-group-label">Output folders</div>
+    <a class="toc-link" href="#output-structure">Folder structure</a>
+  </div>
+
+  <div class="toc-group">
+    <div class="toc-group-label">Tips &amp; Workflows</div>
+    <a class="toc-link" href="#chaining">Chaining scans</a>
+    <a class="toc-link" href="#targeted">Targeted searches</a>
+    <a class="toc-link" href="#tips">General tips</a>
+  </div>
+
+  <div class="toc-group">
+    <a class="toc-link top" href="#faq">FAQ</a>
+    <a class="toc-link top" href="#vs-competitors">How we compare</a>
+  </div>
+</nav>
+
+<!-- ── Main content ────────────────────────────────────────────────── -->
+<main class="content">
+
+  <a href="/" class="back-btn">← Back to Media Sorter</a>
+
+  <div class="doc-header">
+    <h1>📷 Media Sorter — Reference Manual</h1>
+    <p>Complete guide to every feature, mode, and option.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="overview">
+    <h2>What is Media Sorter?</h2>
+    <p>Media Sorter is a <strong>local AI photo and video organiser</strong> that runs entirely on your PC. No cloud account, no subscription, no internet required after setup. It scans any folder — an SD card, a phone, a hard drive — and organises your files using artificial intelligence.</p>
+
+    <p>It started as a trail camera tool and grew into a general-purpose media organiser. Its two unique advantages over every paid competitor:</p>
+    <ul>
+      <li><strong>User-definable AI categories</strong> — type a sentence like "a photo of my red barn" and a new category is created instantly. No other tool offers this. Excire Foto ($199), ACDSee ($80/yr), and DigiKam cannot do this at all.</li>
+      <li><strong>Visual similarity search</strong> — upload any reference photo and find all visually similar photos in any folder. Works with any subject: a specific animal, a face, a dish, a flower, a building. Zero configuration.</li>
+    </ul>
+    <p>Everything is <strong>copy-based</strong>. Your original files are never touched, renamed, or deleted.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="starting">
+    <h2>Starting &amp; Stopping the App</h2>
+
+    <h3>The command prompt window</h3>
+    <p>When you launch Media Sorter by double-clicking <strong>Launch Media Sorter.bat</strong>, two things open:</p>
+    <ol class="steps">
+      <li><span class="sc">A <strong>black command prompt window</strong> — this is the server engine. It must stay open the entire time you are using the app.</span></li>
+      <li><span class="sc">Your <strong>web browser</strong> opens automatically at <code>http://localhost:5000</code> — this is the actual interface you use.</span></li>
+    </ol>
+
+    <div class="warn">
+      <strong>Do not close the command prompt window while you are using the app.</strong>
+      If you close it, the browser interface will immediately stop working — any scan in progress will be interrupted and results may be incomplete. The black window can be minimised to the taskbar; it does not need to stay visible.
+    </div>
+
+    <h3>How to stop the app when you are done</h3>
+    <ol class="steps">
+      <li><span class="sc">Close your browser tab (or the whole browser window).</span></li>
+      <li><span class="sc">Click on the black command prompt window in your taskbar to bring it up.</span></li>
+      <li><span class="sc">Press <strong>Ctrl + C</strong> inside it — this cleanly shuts down the server. The window will then close on its own, or you can close it manually.</span></li>
+    </ol>
+    <div class="note"><strong>Nothing is lost</strong> when you close the app. All sorted files are already on disk. The next time you launch, the app starts fresh and ready to run.</div>
+
+    <h3>Disk space</h3>
+    <p>Media Sorter is <strong>copy-based</strong> — your originals are never touched. Every sorted file is a copy in your output folder. This means:</p>
+    <ul>
+      <li>Your output drive needs roughly as much free space as the files you are sorting.</li>
+      <li>With multi-copy ON, files that match several categories are copied multiple times — budget extra space.</li>
+      <li>The app shows available space on your output drive below the Output field, and warns you before starting if it is very low.</li>
+      <li>If the drive fills up mid-sort the run will stop. Always check available space first for large libraries.</li>
+    </ul>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="quickstart">
+    <h2>Quick Start</h2>
+    <ol class="steps">
+      <li><span class="sc">Set your <strong>Source folder</strong> — where your photos are. Use the 📁 button to browse, or paste a path directly. For SD cards and phones, click 🔍 to auto-detect.</span></li>
+      <li><span class="sc">Set your <strong>Output folder</strong> — where sorted results will be copied. Default is <code>C:\MediaSorted</code>. Can be anywhere <strong>except the exact same path as your source</strong>. Subfolders of source, parent folders, and different drives all work fine.</span></li>
+      <li><span class="sc">Choose a <strong>mode</strong> from the button bar (Scan For Media is selected by default).</span></li>
+      <li><span class="sc">For <em>Sort By Category</em>: toggle on the categories you want to find.</span></li>
+      <li><span class="sc">Press the green <strong>Start</strong> button. Watch the live progress log.</span></li>
+      <li><span class="sc">When done, click <strong>📂 Open folder</strong> on any result card to view the files in Explorer.</span></li>
+    </ol>
+    <div class="tip"><strong>Tip:</strong> For your first run, try <em>Scan For Media</em> on a small folder (100–200 photos) to get familiar with the tool before sorting your full library.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="modes">
+    <h2>Operation Modes</h2>
+    <p>Media Sorter has eight modes. Each is designed for a different task. Select the mode using the button bar at the top of the app.</p>
+
+    <div class="mode-grid">
+      <div class="mode-card"><div class="mc-icon">📷</div><div class="mc-name">Scan For Media</div><div class="mc-desc">Gather everything into one flat folder. No AI.</div></div>
+      <div class="mode-card"><div class="mc-icon">🔀</div><div class="mc-name">Sort By Category</div><div class="mc-desc">AI separates files into labelled folders.</div></div>
+      <div class="mode-card"><div class="mc-icon">📅</div><div class="mc-name">Sort by Date</div><div class="mc-desc">Year / Month subfolders from EXIF.</div></div>
+      <div class="mode-card"><div class="mc-icon">📍</div><div class="mc-name">Sort by Location</div><div class="mc-desc">City / Country folders from GPS data.</div></div>
+      <div class="mode-card"><div class="mc-icon">🔍</div><div class="mc-name">Find Photos With</div><div class="mc-desc">AND logic — must match ALL selected.</div></div>
+      <div class="mode-card"><div class="mc-icon">🖼️</div><div class="mc-name">Find Similar Photos</div><div class="mc-desc">Upload a reference → finds visual matches.</div></div>
+      <div class="mode-card"><div class="mc-icon">🔁</div><div class="mc-name">Find Duplicates</div><div class="mc-desc">Separates unique files from extras. No AI.</div></div>
+      <div class="mode-card"><div class="mc-icon">🗓️</div><div class="mc-name">Sort by Event</div><div class="mc-desc">Groups photos by time gaps into events.</div></div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="mode-collect">
+    <h2>📷 Scan For Media</h2>
+    <p>Recursively scans every subfolder of your source and copies all matching files into a single <code>Collected/</code> folder in your output. No AI is used — this is purely a file-gathering operation.</p>
+
+    <h3>When to use it</h3>
+    <ul>
+      <li>Your photos are scattered across many nested subfolders and you want them in one place before sorting.</li>
+      <li>Pulling everything off an SD card or phone before organising.</li>
+      <li>Creating a flat working copy of a folder tree.</li>
+    </ul>
+
+    <h3>Collision handling</h3>
+    <p>If two files from different subfolders share the same filename, the second is automatically renamed <code>IMG_001_1.jpg</code>, <code>IMG_001_2.jpg</code> etc. No file is ever overwritten or lost.</p>
+
+    <div class="tip"><strong>Chain tip:</strong> After Scan For Media finishes, a clickable link appears below the source field: "click here to use Collected as source." Click it, then switch to Sort By Category for a two-pass workflow: gather first, then sort.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="mode-sort">
+    <h2>🔀 Sort By Category</h2>
+    <p>The main AI sorting mode. Every file is analysed by the detection stack and copied into one or more labelled category folders. Files that match nothing go to <code>Unsorted/</code> (if that option is on) or are skipped.</p>
+
+    <h3>Options visible in this mode</h3>
+    <ul>
+      <li><strong>Categories</strong> — toggle on only the ones you want. All are off by default.</li>
+      <li><strong>Confidence slider</strong> — controls how strict the AI detectors are (see <a href="#confidence">Confidence slider</a>).</li>
+      <li><strong>Copy to all matching categories</strong> — when ON, a file with both a person and an animal is placed in both <code>Person/</code> and <code>Animal/</code>. When OFF, only the highest-priority match is used.</li>
+      <li><strong>Copy non-matching files to Unsorted/</strong> — when ON, every file that doesn't match any category is copied to <code>Unsorted/</code>. Turn this OFF for targeted searches — otherwise the entire library is copied.</li>
+      <li><strong>Include date in folder path</strong> — files land in <code>Animal/2024/June/</code> instead of flat <code>Animal/</code>.</li>
+      <li><strong>Write XMP metadata tags</strong> — creates a sidecar <code>.xmp</code> file next to each sorted photo, readable by Lightroom and Capture One.</li>
+    </ul>
+
+    <h3>Face recognition in Sort mode</h3>
+    <p>If you have <a href="#faces">Face Profiles</a> registered, face recognition runs automatically on every file alongside the AI categories. Matched photos are copied to <code>People_Mike/</code>, <code>People_Sarah/</code> etc. You don't need to do anything extra — just run Sort By Category.</p>
+
+    <div class="warn"><strong>Performance note:</strong> Leave "Copy non-matching to Unsorted/" OFF when you want only specific photos from a large library. With it ON, sorting 136 GB for cake photos would copy 136 GB — most of it to Unsorted/.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="mode-date">
+    <h2>📅 Sort by Date</h2>
+    <p>Reads the date from each file's EXIF metadata and copies it into <code>Year/Month</code> subfolders — for example <code>2024/June/IMG_0042.jpg</code>.</p>
+    <ul>
+      <li>Uses <strong>DateTimeOriginal</strong> EXIF tag (when the photo was taken).</li>
+      <li>Falls back to the file's last-modified date if no EXIF data is present.</li>
+      <li>Works on both photos and videos.</li>
+      <li>The confidence slider has no effect in this mode.</li>
+    </ul>
+    <div class="tip"><strong>Tip:</strong> Run Sort by Date first to get a clean Year/Month structure, then use Sort By Category inside individual month folders for deeper organisation.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="mode-location">
+    <h2>📍 Sort by Location</h2>
+    <p>Reads GPS coordinates from each photo's EXIF data and sorts into <code>CityName_CountryCode</code> folders — for example <code>Toronto_CA/</code> or <code>Paris_FR/</code>.</p>
+    <ul>
+      <li>Photos without GPS data go into <code>No_GPS/</code>.</li>
+      <li>Uses offline reverse geocoding — no internet required.</li>
+      <li>Works best with photos taken on a smartphone (most phones embed GPS automatically).</li>
+      <li>Many dedicated cameras and trail cameras do not record GPS.</li>
+    </ul>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="mode-filter">
+    <h2>🔍 Find Photos With</h2>
+    <p>The precision filter mode. Select two or more categories — only files that match <strong>ALL</strong> of them are copied. This is AND logic, not OR.</p>
+
+    <h4>Example</h4>
+    <p>Enable <em>Animals</em> and <em>People</em> → only clips where both a person AND an animal appear are found. A photo with only a person is skipped. A photo with only an animal is skipped.</p>
+
+    <h4>Another example</h4>
+    <p>Enable <em>Sunset</em> and <em>Water</em> → only photos that are both a sunset AND at a beach or lake are found.</p>
+
+    <div class="note"><strong>Note:</strong> For best results keep the number of categories to two or three. The more categories you require, the fewer files will match all of them.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="mode-similar">
+    <h2>🖼️ Find Similar Photos</h2>
+    <p>Upload any reference photo and Media Sorter finds all photos and videos in your source folder that look visually similar to it. No text labels, no categories — pure visual matching.</p>
+
+    <h3>How to use it</h3>
+    <ol class="steps">
+      <li><span class="sc">Switch to <strong>Find Similar Photos</strong> mode.</span></li>
+      <li><span class="sc">Click <strong>Browse</strong> and choose your reference photo. The AI encodes it immediately (CLIP model loads ~350 MB on first run — this takes a minute; subsequent runs are instant).</span></li>
+      <li><span class="sc">Wait for the green <strong>✓ Reference encoded</strong> confirmation.</span></li>
+      <li><span class="sc">Set your source folder and press <strong>▶ Find Similar Photos</strong>.</span></li>
+      <li><span class="sc">Results land in <code>Similar_to_[filename]/</code> in your output folder.</span></li>
+    </ol>
+
+    <h3>What the AI actually looks at</h3>
+    <p>The AI creates a numerical fingerprint of the <strong>entire image</strong> — composition, colours, framing, lighting, shapes. It does not look for a single specific object. If your reference photo is a man wearing a hat, the AI will weight the full scene: the human figure, the background, the overall colour palette. This means:</p>
+    <ul>
+      <li>Results at low confidence (25%) are broad — other people photos, similar lighting conditions.</li>
+      <li>Results at high confidence (60–70%) are narrow — only photos with very similar overall appearance.</li>
+    </ul>
+    <div class="tip"><strong>Best practice:</strong> Start at 50% confidence. If you get too few results, lower it. If you get unrelated photos, raise it. The slider auto-sets to 50% when you enter this mode.</div>
+
+    <h3>Clearing the reference photo</h3>
+    <p>Click the red <strong>✕ Clear</strong> button that appears next to Browse after encoding. This removes the stored reference so you can upload a different one.</p>
+
+    <h3>What it is NOT</h3>
+    <p>This is not the same as Face Profiles. Find Similar Photos matches visual composition — lighting, scene, colours, shapes. For finding all photos of a specific <em>person</em>, use <a href="#faces">Face Profiles</a> with Sort By Category instead.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="mode-dedupe">
+    <h2>🔁 Find Duplicates</h2>
+    <p>Scans your entire source folder and separates files into two folders: <code>Unique/</code> (one copy of each photo) and <code>Duplicates/</code> (the extras).</p>
+
+    <h3>How it works</h3>
+    <p>Uses <strong>perceptual hashing</strong> — a technique that creates a visual fingerprint of each image. Two photos with the same fingerprint (within a small tolerance) are considered duplicates, even if they were:</p>
+    <ul>
+      <li>Renamed to different filenames</li>
+      <li>Slightly re-saved at different quality levels</li>
+      <li>Copied from different backup folders</li>
+    </ul>
+    <p>No AI model is needed. This mode is very fast.</p>
+
+    <h3>After the scan</h3>
+    <p>A <strong>👥 Review Duplicates</strong> button appears in the results. Click it to open a grid of all files in <code>Duplicates/</code>. For each one you can <strong>Keep</strong> it (leaves it in place) or <strong>Trash</strong> it (moves to a <code>Trash/</code> folder). Files in Trash are <strong>never permanently deleted</strong> — you have the final say.</p>
+
+    <h3>How video duplicate detection works</h3>
+    <p>For videos, the duplicate detector uses an <strong>exact-copy fingerprint</strong>: it checks the file size and reads the first and last megabyte of each file to generate a content signature. Two videos with the same signature are byte-for-byte identical — a true duplicate. This is much more reliable than visual frame comparison for trail camera footage, where the camera is fixed and the background never changes.</p>
+
+    <table class="cat-table">
+      <thead><tr><th>Video scenario</th><th>Detected as duplicate?</th></tr></thead>
+      <tbody>
+        <tr><td>Exact copy of the same file (renamed or in a different folder)</td><td class="yes">✓ Yes</td></tr>
+        <tr><td>Same video copied to two backup locations</td><td class="yes">✓ Yes</td></tr>
+        <tr><td>Windows download duplicate — e.g. video(1).mp4 alongside video.mp4</td><td class="yes">✓ Yes</td></tr>
+        <tr><td>Two different clips that look visually similar (same trail cam location)</td><td class="yes">✓ Not flagged — correctly treated as unique</td></tr>
+        <tr><td>Re-exported or re-encoded at a different quality</td><td class="no">✗ Not detected — bytes differ</td></tr>
+        <tr><td>Edited or trimmed version of the same clip</td><td class="no">✗ Not detected — it is genuinely a different file</td></tr>
+      </tbody>
+    </table>
+    <p>The goal is to find files you accidentally saved twice — not to find creatively similar content. An original clip and an edited version are genuinely different files; the app leaves that decision to you.</p>
+
+    <h3>Separating photos from videos — two-pass approach</h3>
+    <p>The <strong>File Types</strong> pills (Videos / Photos checkboxes) at the top of the Source &amp; Output card let you control which file types are processed. Use this for a clean two-pass duplicate removal:</p>
+    <ol class="steps">
+      <li><span class="sc">Uncheck <strong>Videos</strong>, leave <strong>Photos</strong> checked. Run <strong>Find Duplicates</strong>. Photo duplicates go to <code>Duplicates/</code>, unique photos to <code>Unique/</code>. Review and trash photo duplicates.</span></li>
+      <li><span class="sc">Uncheck <strong>Photos</strong>, check <strong>Videos</strong>. Run <strong>Find Duplicates</strong> again. Same result for videos. Review and trash true video copies.</span></li>
+    </ol>
+    <p>Running the two types separately keeps your review screens manageable and lets you apply different judgement to photos vs. videos.</p>
+
+    <div class="note"><strong>vs. the Duplicates category in Sort By Category:</strong> The "Duplicates" category toggle in Sort mode catches duplicates <em>within the current sort run</em> as a side effect. Find Duplicates mode is a dedicated full-library scan that compares every file against every other file — much more thorough for large libraries.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="mode-event">
+    <h2>🗓️ Sort by Event</h2>
+    <p>Groups your photos into events based on time gaps between consecutive photos. Any gap of more than <strong>8 hours</strong> between photos starts a new event.</p>
+
+    <h3>Output example</h3>
+    <ul>
+      <li><code>Event_2024-06-15/</code> — all photos from a single day</li>
+      <li><code>Event_2024-07-04_to_2024-07-06/</code> — a multi-day camping trip</li>
+      <li><code>Event_2024-12-25/</code> — Christmas photos</li>
+    </ul>
+
+    <h3>When to use it</h3>
+    <p>Ideal when a single folder contains photos from many different occasions mixed together — a weekend hike, a birthday party, a work conference — and you want them automatically separated without manually creating folders. Similar to how Apple Photos groups photos into "memories."</p>
+
+    <div class="tip"><strong>Tip:</strong> Run Sort by Date first if you want Year/Month structure, then run Sort by Event on individual months to get event-level organisation within each month.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="categories">
+    <h2>Categories Explained</h2>
+    <p>Categories are the labels the AI uses to classify each photo or video. Each uses a different detection method.</p>
+
+    <table class="cat-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>How detected</th>
+          <th>Confidence slider</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>🌙 Night / IR</td><td><span class="tag tag-fixed">Fixed rule</span> Channel difference</td><td class="no">No effect</td><td>Near-grayscale images — catches true IR trail cam photos, B&amp;W photos, and very low-saturation scenes.</td></tr>
+        <tr><td>⚠️ Damaged</td><td><span class="tag tag-fixed">Fixed rule</span> Blur detection</td><td class="no">No effect</td><td>Laplacian variance test. Blurry or out-of-focus images only. Images only (not video).</td></tr>
+        <tr><td>📱 Screenshots</td><td><span class="tag tag-exif">EXIF / size</span></td><td class="no">No effect</td><td>Checks EXIF Software field and common phone screen resolutions. Images only.</td></tr>
+        <tr><td>🤳 Selfies</td><td><span class="tag tag-exif">EXIF</span></td><td class="no">No effect</td><td>Looks for "front" in the EXIF LensModel field. Images only.</td></tr>
+        <tr><td>🌄 Panoramas</td><td><span class="tag tag-exif">EXIF</span></td><td class="no">No effect</td><td>SceneCaptureType == 3 in EXIF. Images only.</td></tr>
+        <tr><td>👥 Duplicates</td><td><span class="tag tag-fixed">Fixed rule</span> Perceptual hash</td><td class="no">No effect</td><td>pHash difference ≤ 8. Near-identical images. See also Find Duplicates mode.</td></tr>
+        <tr><td>🐾 Animals</td><td><span class="tag tag-ai">AI · MegaDetector</span></td><td class="yes">Applies</td><td>Wildlife detection model trained on trail camera footage. Excellent for deer, bears, birds, etc.</td></tr>
+        <tr><td>🚶 People</td><td><span class="tag tag-ai">AI · MegaDetector</span></td><td class="yes">Applies</td><td>Person detection. Does not identify who — for that, use Face Profiles.</td></tr>
+        <tr><td>🚗 Vehicles</td><td><span class="tag tag-ai">AI · MegaDetector</span></td><td class="yes">Applies</td><td>Cars, trucks, ATVs, etc.</td></tr>
+        <tr><td>🐕 Pets</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Dogs and cats specifically.</td></tr>
+        <tr><td>🌿 Nature</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Forests, mountains, rivers, wilderness landscapes.</td></tr>
+        <tr><td>🌅 Sunsets</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Orange/pink/red sky at sunrise or sunset.</td></tr>
+        <tr><td>🌊 Water / Beach</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Ocean, beach, lake, river, waves.</td></tr>
+        <tr><td>🏛️ Buildings</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Architecture, houses, urban environments.</td></tr>
+        <tr><td>🌸 Flowers</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Close-up flower and plant photography.</td></tr>
+        <tr><td>🍽️ Food</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Meals, drinks, food on a table.</td></tr>
+        <tr><td>📄 Documents</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Receipts, whiteboards, book pages, printed text.</td></tr>
+        <tr><td>❄️ Snow / Winter</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Winter landscapes, snow, ice.</td></tr>
+        <tr><td>🏠 Indoor</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Interior spaces, rooms, inside buildings.</td></tr>
+        <tr><td>🎉 Events</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Parties, celebrations, birthdays, weddings.</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:.78rem;color:#4a6a4a">Categories marked <span class="tag tag-fixed">Fixed rule</span> use a mathematical test — the confidence slider has <em>no effect</em> on them. They appear with a <strong>⚙ fixed rule</strong> label in the category grid.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="confidence">
+    <h2>Confidence Slider</h2>
+    <p>The slider controls how strict the AI has to be before it places a file in a category. It runs from <strong>5% (very loose)</strong> to <strong>60% (very strict)</strong>. Default is 25%.</p>
+
+    <h3>What it affects</h3>
+    <ul>
+      <li><strong>MegaDetector categories</strong> (Animals, People, Vehicles) — the minimum detection confidence score required.</li>
+      <li><strong>CLIP categories</strong> (Nature, Food, Sunset, etc. and all custom categories) — the minimum text-image similarity score required.</li>
+      <li><strong>Find Similar Photos mode</strong> — how closely photos must match the reference image. The slider auto-sets to 50% in this mode.</li>
+    </ul>
+
+    <h3>What it does NOT affect</h3>
+    <p>Categories marked <strong>⚙ fixed rule</strong> use mathematical tests with no confidence score: Night/IR, Damaged, Screenshots, Selfies, Panoramas, and Duplicates. Changing the slider has zero effect on these.</p>
+
+    <h3>Choosing the right level</h3>
+    <ul>
+      <li><strong>5–15%</strong> — very broad. Catches almost everything but produces many false hits.</li>
+      <li><strong>25%</strong> (default) — balanced for general sorting.</li>
+      <li><strong>40–50%</strong> — stricter. Good for Find Similar Photos or when false positives are a problem.</li>
+      <li><strong>60%</strong> — strictest. Misses some real matches but almost no false hits.</li>
+    </ul>
+    <div class="note"><strong>Trail camera note:</strong> MegaDetector was trained on trail camera footage and performs very well at 25% for animals. Going higher (50%+) may miss partially visible animals or distant wildlife.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="faces">
+    <h2>Face Profiles</h2>
+    <p>Face Profiles lets you register specific people and then have Sort By Category automatically find and organise their photos.</p>
+
+    <h3>Step 1 — Register a person (one time only)</h3>
+    <ol class="steps">
+      <li><span class="sc">Scroll to the <strong>Face Profiles</strong> card at the bottom of the page.</span></li>
+      <li><span class="sc">Type the person's name in the <strong>Person's name</strong> field.</span></li>
+      <li><span class="sc">Click <strong>Browse</strong> and select 1–5 reference photos. Use clear, well-lit, front-facing photos for best accuracy. Different angles, lighting, and ages improve recognition.</span></li>
+      <li><span class="sc">Click <strong>Add 👤</strong>. The face detection model downloads (~110 MB on first use), reads the faces, and stores a mathematical fingerprint. This takes a few seconds. You only do this once per person.</span></li>
+      <li><span class="sc">A chip appears: <em>👤 Mike (2)</em> — the number is how many face embeddings were stored.</span></li>
+    </ol>
+
+    <h3>Step 2 — Find their photos</h3>
+    <ol class="steps">
+      <li><span class="sc">Switch to <strong>Sort By Category</strong> mode (use the button on the Face Profiles card or the mode bar at the top).</span></li>
+      <li><span class="sc">Enable any categories you also want sorted (or none — face recognition runs regardless).</span></li>
+      <li><span class="sc">Press <strong>▶ Sort By Category</strong>.</span></li>
+      <li><span class="sc">Photos of registered people are automatically copied to <code>People_Mike/</code>, <code>People_Sarah/</code> etc. alongside your other category results.</span></li>
+    </ol>
+
+    <div class="note"><strong>Accuracy:</strong> The face recognition model (InceptionResnetV1 / VGGFace2) is accurate for well-lit, clear frontal photos. Accuracy decreases with partial faces, poor lighting, or extreme angles. Using 3–5 varied reference photos significantly improves results.</div>
+
+    <h3>Removing a profile</h3>
+    <p>Click the <strong>✕</strong> on a person's chip in the Face Profiles card to permanently remove their profile.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="custom-cats">
+    <h2>Custom Categories</h2>
+    <p>You can create your own AI categories at any time with no technical knowledge and no retraining of any model.</p>
+
+    <h3>How to add one</h3>
+    <ol class="steps">
+      <li><span class="sc">In the Categories section, find the <strong>＋ Add your own category</strong> area at the bottom.</span></li>
+      <li><span class="sc">Type a <strong>Category name</strong> — this becomes the folder name (e.g. "Red Barn").</span></li>
+      <li><span class="sc">Optionally type a <strong>description</strong> — the more specific, the better. Example: <em>"a photo of a red wooden barn in a farm field"</em>. If you leave this blank, a description is auto-generated from the name.</span></li>
+      <li><span class="sc">Click <strong>Add ＋</strong>. The new category appears as a toggle immediately.</span></li>
+    </ol>
+
+    <p>Custom categories are saved to <code>custom_categories.json</code> and persist across app restarts. They work exactly like built-in categories and respond to the confidence slider.</p>
+
+    <div class="tip"><strong>Writing good descriptions:</strong> Be specific and visual. "a photo of a red barn" works better than "barn." "a golden retriever puppy playing in grass" works better than "my dog." The AI matches based on visual content described in plain English.</div>
+
+    <h3>Per-category threshold overrides</h3>
+    <p>See <a href="#thresholds">Per-category thresholds</a> below to fine-tune individual categories without affecting the global slider.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="thresholds">
+    <h2>Per-Category Sensitivity Overrides</h2>
+    <p>In Sort By Category and Find Photos With modes, a collapsible <strong>⚙️ Per-category sensitivity overrides</strong> panel appears below the categories. This lets you set a different confidence threshold for each CLIP category, independent of the global slider.</p>
+
+    <ul>
+      <li>Each CLIP category gets its own slider from 5% to 80%.</li>
+      <li>An override takes priority over the global slider for that category.</li>
+      <li>A <strong>↺</strong> button resets a category back to following the global slider.</li>
+      <li>Overrides are saved to <code>category_thresholds.json</code> and persist across restarts.</li>
+    </ul>
+
+    <div class="tip"><strong>Example use:</strong> Food often produces false positives (a red flower might score as food). Set Food's override to 45% while keeping the global slider at 25% for everything else.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="multicopy">
+    <h2>Multi-Copy</h2>
+    <p>In Sort By Category mode, the <strong>Copy to all matching categories</strong> checkbox (default ON) controls what happens when a file matches more than one category.</p>
+    <ul>
+      <li><strong>ON</strong> — a trail camera clip with a deer and a person is copied to both <code>Animal/</code> and <code>Person/</code>. You find it either way.</li>
+      <li><strong>OFF</strong> — only the highest-priority match is used. Priority order: Night &gt; Damaged &gt; Screenshot/Selfie/Panorama &gt; Duplicate &gt; Animals/People/Vehicles &gt; CLIP categories &gt; Custom categories.</li>
+    </ul>
+    <div class="note">Your original file is never affected. All output is copy-only.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="xmp">
+    <h2>XMP Metadata Export</h2>
+    <p>When <strong>Write XMP metadata tags</strong> is checked in Sort By Category mode, a sidecar <code>.xmp</code> file is created alongside each sorted photo.</p>
+    <ul>
+      <li>XMP files are plain XML — readable by Adobe Lightroom, Capture One, and any XMP-compatible application.</li>
+      <li>The file contains: the category label(s) as keywords, a star rating scaled from the AI confidence score, and a creator tag (<em>Media Sorter</em>).</li>
+      <li>Example: <code>IMG_0042.jpg</code> → <code>IMG_0042.xmp</code> in the same folder.</li>
+      <li>XMP files are only written for photos (not videos).</li>
+    </ul>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="review">
+    <h2>Review Screens</h2>
+    <p>After a Sort By Category run, two optional review screens may appear.</p>
+
+    <h3>🔎 Review Uncertain Placements</h3>
+    <p>Appears if any file was sorted with less than 40% AI confidence. Shows a grid with a thumbnail, the category it was placed in, and the confidence percentage. For each file you can:</p>
+    <ul>
+      <li><strong>✓ Keep</strong> — accept the AI's placement and move on.</li>
+      <li><strong>Move to…</strong> — reassign it to a different category folder using the dropdown.</li>
+    </ul>
+
+    <h3>👥 Review Duplicates</h3>
+    <p>Appears if any files were detected as duplicates (also appears after Find Duplicates mode). Shows a grid of the duplicate files. For each one:</p>
+    <ul>
+      <li><strong>✓ Keep</strong> — leave it in the Duplicates folder.</li>
+      <li><strong>🗑 Trash</strong> — move it to a <code>Trash/</code> folder. <strong>Files in Trash are never automatically deleted.</strong> You can review and empty Trash manually in Explorer when you're certain.</li>
+    </ul>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="browser">
+    <h2>Folder Browser</h2>
+    <p>Click the <strong>📁</strong> button next to either the Source or Output field to open a click-to-navigate folder tree. Drive letters appear at the root. Click any folder to select it, expand it to see subfolders. Press <strong>Select ✓</strong> to confirm.</p>
+    <p>You can also type or paste a path directly into either field.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="phone">
+    <h2>Phone &amp; Tablet Access</h2>
+    <p>When Media Sorter starts, the terminal window shows two addresses:</p>
+    <ul>
+      <li><code>http://localhost:5000</code> — this computer only</li>
+      <li><code>http://192.168.x.x:5000</code> — accessible from any device on the same WiFi</li>
+    </ul>
+    <p>Open the second address on your phone or tablet browser. The full interface loads — you can start scans, browse results, and review duplicates from your phone while the processing runs on your PC. No app install required.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="output-structure">
+    <h2>Output Folder Structure</h2>
+    <p>All output goes to your chosen Output folder (default <code>C:\MediaSorted\</code>). Media Sorter creates subfolders automatically.</p>
+
+    <table class="cat-table">
+      <thead><tr><th>Subfolder</th><th>Created by</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td><code>Animal/</code>, <code>Person/</code>, etc.</td><td>Sort By Category</td><td>Files matching that AI category</td></tr>
+        <tr><td><code>People_Mike/</code></td><td>Face recognition</td><td>Photos of that registered person</td></tr>
+        <tr><td><code>Collected/</code></td><td>Scan For Media</td><td>All gathered files in one flat folder</td></tr>
+        <tr><td><code>Unsorted/</code></td><td>Sort By Category</td><td>Files that matched no category (only when that option is ON)</td></tr>
+        <tr><td><code>Similar_to_[name]/</code></td><td>Find Similar Photos</td><td>Visually similar matches</td></tr>
+        <tr><td><code>Unique/</code></td><td>Find Duplicates</td><td>First occurrence of each unique image</td></tr>
+        <tr><td><code>Duplicates/</code></td><td>Find Duplicates / Sort</td><td>Extra copies of duplicate images</td></tr>
+        <tr><td><code>Trash/</code></td><td>Duplicate review screen</td><td>Files you chose to discard — never auto-deleted</td></tr>
+        <tr><td><code>Event_2024-06-15/</code></td><td>Sort by Event</td><td>Photos grouped by time gap</td></tr>
+        <tr><td><code>2024/June/</code></td><td>Sort by Date</td><td>Year/Month grouping</td></tr>
+        <tr><td><code>Toronto_CA/</code></td><td>Sort by Location</td><td>GPS-based location grouping</td></tr>
+        <tr><td><code>thumbs/</code></td><td>Sort By Category / Similar</td><td>Small preview images for the UI — safe to delete</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><strong>Source files are never modified.</strong> Everything above is a copy. You can delete the entire output folder and start fresh at any time.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="chaining">
+    <h2>Chaining Scans</h2>
+    <p>Media Sorter is designed for multi-step workflows. After any scan finishes, a link appears below the source field: <em>"click here to use [output path] as source."</em> Click it to chain directly into the next operation.</p>
+
+    <h4>Recommended full-library workflow</h4>
+    <ol class="steps">
+      <li><span class="sc"><strong>Scan For Media</strong> — gather everything from a messy folder tree into <code>Collected/</code>.</span></li>
+      <li><span class="sc">Chain: set source to <code>Collected/</code>. Run <strong>Find Duplicates</strong> — separate unique files from extras. Review and trash duplicates.</span></li>
+      <li><span class="sc">Chain: set source to <code>Unique/</code>. Run <strong>Sort by Date</strong> — get a clean Year/Month base structure.</span></li>
+      <li><span class="sc">Run <strong>Sort By Category</strong> on individual month folders for specific searches as needed.</span></li>
+    </ol>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="targeted">
+    <h2>Targeted Searches (Finding Specific Photos in a Large Library)</h2>
+    <p>To find specific photos — say, all cake photos from a 136 GB library — without copying everything:</p>
+    <ol class="steps">
+      <li><span class="sc">Switch to <strong>Sort By Category</strong>.</span></li>
+      <li><span class="sc">Enable only the categories you want (e.g. Food, or a custom "Birthday Cake" category).</span></li>
+      <li><span class="sc">Make sure <strong>Copy non-matching files to Unsorted/</strong> is <em>unchecked</em> (it is by default).</span></li>
+      <li><span class="sc">Press Start. Only your matched files are copied. The rest of the 136 GB is scanned but never touched.</span></li>
+    </ol>
+    <div class="warn"><strong>If you check "Copy non-matching to Unsorted/"</strong> during a targeted search on a large library, every non-matching file is copied to Unsorted/ — this can mean copying hundreds of GB of files you don't need. Leave it unchecked for targeted searches.</div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="tips">
+    <h2>General Tips</h2>
+    <ul>
+      <li><strong>Source and output cannot be the exact same folder.</strong> If both fields point to the identical path the scan returns 0 files. Any other arrangement works: output inside source, source inside output, same drive, different drive — all fine.</li>
+      <li><strong>Flexible path arrangements — all supported:</strong> source <code>D:\Photos\</code> → output <code>D:\Photos\Sorted\</code> ✓ &nbsp;|&nbsp; source <code>D:\Sorted\Unique\</code> → output <code>D:\Sorted\</code> ✓ &nbsp;|&nbsp; source <code>D:\</code> → output <code>C:\MediaSorted\</code> ✓. Only exact-same-path is blocked.</li>
+      <li><strong>HEIC photos</strong> (iPhone format) are fully supported. They go through every detector exactly like JPEGs.</li>
+      <li><strong>Videos are sampled</strong> at 2, 4, 6, 8, and 10 seconds. The AI analyses these frames — it does not process the full video.</li>
+      <li><strong>AI models download once</strong> and are cached on your PC. MegaDetector (~290 MB) downloads on the first Sort By Category run. CLIP (~350 MB) downloads on the first CLIP-based category run or Find Similar Photos run. Face recognition (~110 MB) downloads on the first face profile addition.</li>
+      <li><strong>The app runs locally.</strong> No files ever leave your computer. No internet is needed after the one-time model downloads.</li>
+      <li><strong>Separating photos from videos:</strong> Use the <strong>🎬 Videos</strong> and <strong>🖼️ Photos</strong> pills at the top of the Source card. Uncheck one type per run to process them separately. This works in all modes including Find Duplicates.</li>
+      <li><strong>Video duplicate detection</strong> uses an exact-copy fingerprint (file size + content signature). True copies are caught reliably regardless of filename. Visually similar clips that are different recordings are never falsely flagged. Re-encoded or edited versions are treated as separate files — correct behaviour, since they genuinely are different.</li>
+      <li><strong>Multiple monitors / remote access:</strong> Open <code>http://[your-pc-ip]:5000</code> on any device on your home network.</li>
+    </ul>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="faq">
+    <h2>Frequently Asked Questions</h2>
+
+    <h3>My source shows 0 files found / "Complete — nothing copied."</h3>
+    <p>This happens when source and output are set to the <strong>exact same folder path</strong>. The app protects against accidentally re-sorting its own output. Set your output to any different folder — it can be a subfolder of source, a parent folder of source, or on a different drive entirely. Only the exact-same-path case is blocked.</p>
+
+    <h3>The confidence slider made no difference to my Night sort.</h3>
+    <p>Night/IR uses a fixed mathematical rule — the slider has no effect on it. This is by design. See <a href="#categories">Categories Explained</a>.</p>
+
+    <h3>Find Similar Photos returned unrelated photos.</h3>
+    <p>Try raising confidence to 50–60%. At 25%, the match is broad — any photo with similar overall composition and colour palette may match. See <a href="#mode-similar">Find Similar Photos</a> for a full explanation.</p>
+
+    <h3>How do I search for photos of a specific person?</h3>
+    <p>Use <a href="#faces">Face Profiles</a>, not Find Similar Photos. Register the person once, then run Sort By Category — their photos land in <code>People_[Name]/</code> automatically.</p>
+
+    <h3>Where are my original files?</h3>
+    <p>Exactly where you left them. Media Sorter copies files — it never moves, renames, or deletes originals.</p>
+
+    <h3>The app sorted 200 photos as "Night" but many of them are not IR trail cam photos.</h3>
+    <p>The Night/IR detector identifies <em>near-grayscale images</em> — which includes true IR trail cam photos, black-and-white photography, overcast outdoor scenes, and very faded photos. This is the intended behaviour. If you want only true trail cam IR photos, try adding a custom category with a description like <em>"a black and white infrared trail camera photo of an animal at night"</em> and use that instead.</p>
+
+    <h3>Can I use this on a Mac or Linux?</h3>
+    <p>The Python backend is cross-platform. The "Open folder" button and a few Windows-specific paths would need minor adjustments. For now it is optimised for Windows 11.</p>
+
+    <h3>What about privacy? Does anything get sent to the cloud?</h3>
+    <p>Nothing. All AI processing runs locally on your CPU. The app has no telemetry, no accounts, and no cloud connection of any kind. The only network activity is the one-time model download from public GitHub repositories.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="section" id="vs-competitors">
+    <h2>How Media Sorter Compares</h2>
+
+    <table class="comp-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Media Sorter</th>
+          <th>Excire Foto $199</th>
+          <th>ACDSee $80/yr</th>
+          <th>DigiKam Free</th>
+          <th>Google Photos</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Custom AI categories</td><td class="yes">✓ Type a sentence</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+        <tr><td>Visual similarity search</td><td class="yes">✓ Any subject</td><td class="med">Limited</td><td class="no">✗</td><td class="no">✗</td><td class="med">Limited</td></tr>
+        <tr><td>Outputs to regular folders</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="med">Partial</td><td class="no">✗</td></tr>
+        <tr><td>Fully offline</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✗ Cloud required</td></tr>
+        <tr><td>Face recognition</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Find duplicates</td><td class="yes">✓</td><td class="med">Limited</td><td class="med">Limited</td><td class="yes">✓</td><td class="no">✗</td></tr>
+        <tr><td>Processes videos</td><td class="yes">✓</td><td class="no">✗</td><td class="med">Limited</td><td class="med">Limited</td><td class="yes">✓</td></tr>
+        <tr><td>HEIC / iPhone photos</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+        <tr><td>Sort by Event (time gap)</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="yes">✓ (auto)</td></tr>
+        <tr><td>Price</td><td class="yes">Free</td><td class="no">$199</td><td class="no">$80/yr</td><td class="yes">Free</td><td class="yes">Free*</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:.75rem;color:#3a5a3a">* Google Photos requires a Google account and uploads all photos to Google's servers. Storage over 15 GB requires a paid Google One subscription.</p>
+  </div>
+
+  <div style="margin-top:40px;padding-top:24px;border-top:1px solid #1e2e1e;text-align:center">
+    <a href="/" class="back-btn" style="margin:0">← Back to Media Sorter</a>
+  </div>
+
+</main>
+</div>
+
+<script>
+// Highlight active TOC link on scroll
+const sections = document.querySelectorAll('[id]');
+const links    = document.querySelectorAll('.toc-link');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.style.color = '');
+      const active = document.querySelector('.toc-link[href="#' + e.target.id + '"]');
+      if (active) active.style.color = '#a8dca8';
+    }
+  });
+}, {rootMargin: '-20% 0px -70% 0px'});
+sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

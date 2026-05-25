@@ -50,7 +50,7 @@ FACE_THRESHOLD     = 0.85   # L2 distance; lower = stricter
 
 # ── constants ─────────────────────────────────────────────────────────────────
 SAMPLE_SECS    = [2, 4, 6, 8, 10]
-IR_THRESHOLD   = 8
+IR_THRESHOLD   = 12      # mean channel diff threshold; raised to catch trail-cam IR with slight LED cast
 BLUR_THRESHOLD = 80
 MD_CONFIDENCE  = 0.15
 CLIP_THRESHOLD = 0.21
@@ -238,6 +238,7 @@ _log          = []
 _log_lock     = threading.Lock()
 _results      = {}
 _status       = "idle"
+_scan_id      = 0    # incremented on every new scan start; SSE generators exit when their id is stale
 _seen_hashes  = {}   # filename → hash string, for duplicate detection
 _ref_embedding = None   # CLIP image feature for visual similarity search
 _ref_name      = ""     # sanitised filename stem of the reference image
@@ -402,6 +403,66 @@ def compute_phash(frame):
         return None
 
 
+def compute_quick_hash(filepath):
+    """
+    Fast exact-copy fingerprint for videos: file size + MD5 of first and last 1 MB.
+
+    Why not pHash for videos?  Trail cameras are stationary — the background never
+    changes.  Two completely different recordings of the same empty field will produce
+    nearly identical perceptual hashes regardless of how many frames are sampled,
+    causing massive false positives.
+
+    Exact-copy detection is the right goal for video deduplication: the same file
+    backed up to two locations will be byte-for-byte identical (same size, same bytes).
+    Different recordings are different sizes because video bitrate varies with motion.
+    """
+    import hashlib
+    sample = 1024 * 1024   # read first + last 1 MB
+    try:
+        size = Path(filepath).stat().st_size
+        h = hashlib.md5()
+        with open(filepath, 'rb') as f:
+            h.update(f.read(min(sample, size)))
+            if size > sample * 2:
+                f.seek(-sample, 2)   # seek 1 MB from end
+                h.update(f.read(sample))
+        return (size, h.hexdigest())
+    except Exception:
+        return None
+
+
+def compute_phash_list(frames):
+    """Return list of pHash objects for all frames (used for video dedupe)."""
+    return [h for h in (compute_phash(f) for f in frames) if h is not None]
+
+
+def is_video_dup(new_hashes, seen_hash_lists):
+    """
+    True only if:
+      1. Both videos produced the same number of sampled frames (same duration),  AND
+      2. Every frame pair matches within HASH_THRESHOLD.
+
+    Requiring equal frame counts eliminates the 'short-video contamination' bug:
+    a 2-second clip only extracts 1 frame.  Using min(1, 5)=1 would reduce
+    comparison to a single frame for ALL longer videos tested against it, recreating
+    the original false-positive problem.  Genuine duplicates (same file copied/renamed)
+    will always extract the same number of frames.  Different-length clips are not
+    duplicates by definition.
+    """
+    if not new_hashes:
+        return False
+    for existing in seen_hash_lists:
+        if not existing:
+            continue
+        # Different frame counts → different durations → cannot be a duplicate
+        if len(new_hashes) != len(existing):
+            continue
+        if all(abs(new_hashes[j] - existing[j]) <= HASH_THRESHOLD
+               for j in range(len(new_hashes))):
+            return True
+    return False
+
+
 # ── video/image frame extraction ──────────────────────────────────────────────
 def extract_frames(video_path):
     cap   = cv2.VideoCapture(video_path)
@@ -410,10 +471,14 @@ def extract_frames(video_path):
     fps   = cap.get(cv2.CAP_PROP_FPS) or 30
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frames = []
+    seen_idx = set()   # prevent duplicate frames from short videos getting clamped to same index
     for sec in SAMPLE_SECS:
-        idx = min(int(sec * fps), total - 1)
-        if idx < 0:
-            continue
+        idx = int(sec * fps)
+        if idx >= total or idx < 0:
+            continue           # skip sample points beyond the video duration
+        if idx in seen_idx:
+            continue           # skip if already sampled this exact frame
+        seen_idx.add(idx)
         cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
         ret, frame = cap.read()
         if ret:
@@ -422,13 +487,29 @@ def extract_frames(video_path):
     return frames
 
 
-def load_frames(filepath):
-    """Returns list of frames regardless of file type."""
-    ext = Path(filepath).suffix.upper()
-    if ext in {e.upper() for e in IMAGE_EXTS}:
-        img = cv2.imread(str(filepath))
-        return [img] if img is not None else []
-    return extract_frames(str(filepath))
+def load_frames(filepath, timeout_sec=30):
+    """
+    Returns list of frames regardless of file type.
+    Runs in a thread with a timeout so a single corrupt or enormous file
+    cannot stall the entire scan indefinitely.
+    """
+    import concurrent.futures
+    def _load():
+        ext = Path(filepath).suffix.upper()
+        if ext in {e.upper() for e in IMAGE_EXTS}:
+            img = cv2.imread(str(filepath))
+            return [img] if img is not None else []
+        return extract_frames(str(filepath))
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(_load)
+            return future.result(timeout=timeout_sec)
+    except concurrent.futures.TimeoutError:
+        log(f"[TIMEOUT] Skipped (took >{timeout_sec}s): {Path(filepath).name}")
+        return []
+    except Exception:
+        return []
 
 
 # ── per-frame detectors ───────────────────────────────────────────────────────
@@ -569,12 +650,9 @@ def classify_all(filepath, frames, enabled_cats, md_model, confidence, seen_hash
 
         elif det == "hash":
             if frames:
-                h = compute_phash(frames[0])
-                if h is not None:
-                    for existing_name, existing_h in seen_hashes.items():
-                        if abs(h - existing_h) <= HASH_THRESHOLD:
-                            matches.append((key, 1.0))
-                            break
+                hl = compute_phash_list(frames)
+                if hl and is_video_dup(hl, list(seen_hashes.values())):
+                    matches.append((key, 1.0))
 
         elif det == "megadetector" and md_model:
             found, conf = run_megadetector(md_model, frames, cat["md_class"], confidence)
@@ -588,21 +666,24 @@ def classify_all(filepath, frames, enabled_cats, md_model, confidence, seen_hash
             if found:
                 matches.append((key, conf))
 
-    # Store hash for future duplicate detection
+    # Store hash-list for future duplicate detection (multi-frame fingerprint)
     if "duplicate" in enabled and frames:
-        h = compute_phash(frames[0])
-        if h is not None:
-            seen_hashes[Path(filepath).name] = h
+        hl = compute_phash_list(frames)
+        if hl:
+            seen_hashes[Path(filepath).name] = hl
 
     return matches
 
 
 # ── sort worker ───────────────────────────────────────────────────────────────
 def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
-             mode, multi_copy, filter_all, write_xmp=False):
+             mode, multi_copy, filter_all, write_xmp=False, date_in_cat=False,
+             copy_unsorted=False):
     global _status, _results, _seen_hashes, _uncertain, _dup_files
-    _uncertain = []
-    _dup_files = []
+    _uncertain      = []
+    _dup_files      = []
+    seen_hash_objs   = []    # pHash lists for IMAGE dedupe
+    seen_video_hashes = set() # (size, md5) tuples for VIDEO dedupe — exact-copy only
 
     out          = Path(output_dir)
     enabled_cats = [c for c in CATEGORIES if c["key"] in enabled_keys]
@@ -632,13 +713,18 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
     # Recursive scan — skip anything already inside the output folder
     src_path = Path(source_dir)
     out_upper = str(out).upper()
+    src_upper = str(src_path).upper()
+    # If source is a subfolder of output (e.g. output=D:\sorted, source=D:\sorted\Unique)
+    # the prefix check would exclude every file.  In that case skip the check — rglob is
+    # already scoped to source so we can't accidentally re-process other output subfolders.
+    source_inside_output = src_upper.startswith(out_upper + os.sep.upper())
     files = []
     for p in src_path.rglob("*"):
         if not p.is_file():
             continue
         if p.suffix.upper() not in exts:
             continue
-        if str(p).upper().startswith(out_upper + os.sep.upper()):
+        if not source_inside_output and str(p).upper().startswith(out_upper + os.sep.upper()):
             continue   # don't re-process our own output
         files.append(p)
     files.sort(key=lambda p: str(p).upper())
@@ -654,6 +740,74 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
     ]})
 
     thumbs_dir = out / "thumbs"
+
+    # ── EVENT mode: sort by date, group into events, copy ─────────────────────
+    if mode == "event":
+        EVENT_GAP_HOURS = 8
+        push({"type": "log", "text": "Reading photo dates for event grouping…", "cat": "info"})
+        dated = []
+        for fp in files:
+            dt = get_photo_date(str(fp))
+            dated.append((dt, fp))
+        dated.sort(key=lambda x: x[0])
+
+        # Group consecutive files with gap < 8 hours into the same event
+        events = []
+        if dated:
+            current_event = [dated[0]]
+            for dt, fp in dated[1:]:
+                gap_hours = (dt - current_event[-1][0]).total_seconds() / 3600
+                if gap_hours > EVENT_GAP_HOURS:
+                    events.append(current_event)
+                    current_event = [(dt, fp)]
+                else:
+                    current_event.append((dt, fp))
+            events.append(current_event)
+
+        ec = len(events)
+        push({"type": "log", "text": f"Found {ec} event{'s' if ec != 1 else ''} across {total} files.", "cat": "info"})
+
+        processed = 0
+        stopped   = False
+        for event_files in events:
+            start_dt = event_files[0][0]
+            end_dt   = event_files[-1][0]
+            if start_dt.date() == end_dt.date():
+                folder_name = f"Event_{start_dt.strftime('%Y-%m-%d')}"
+            else:
+                folder_name = (f"Event_{start_dt.strftime('%Y-%m-%d')}"
+                               f"_to_{end_dt.strftime('%Y-%m-%d')}")
+            event_dir = out / folder_name
+            event_dir.mkdir(parents=True, exist_ok=True)
+            folders[folder_name] = str(event_dir)
+
+            for dt, fp in event_files:
+                if _stop_event.is_set():
+                    push({"type": "log", "text": "Stopped by user.", "cat": "info"})
+                    stopped = True
+                    break
+                processed += 1
+                name = fp.name
+                dest = event_dir / name
+                if dest.exists():
+                    stem, suffix = fp.stem, fp.suffix
+                    counter = 1
+                    while dest.exists():
+                        dest = event_dir / f"{stem}_{counter}{suffix}"
+                        counter += 1
+                shutil.copy2(str(fp), dest)
+                counts[folder_name] = counts.get(folder_name, 0) + 1
+                push({"type": "progress", "current": processed, "total": total,
+                      "file": name, "cat": "date", "conf": 0,
+                      "label": folder_name, "thumb": None})
+            if stopped:
+                break
+
+        _results = {"counts": counts, "thumbs": {}, "folders": folders, "mode": mode,
+                    "uncertain_count": 0, "dup_count": 0}
+        push({"type": "done", "results": _results})
+        _status = "done"
+        return
 
     for i, fp in enumerate(files, 1):
         if _stop_event.is_set():
@@ -741,6 +895,79 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
                       "file": name, "cat": "other", "conf": 0, "thumb": None})
             continue
 
+        # ── DEDUPE mode ───────────────────────────────────────────────────────
+        if mode == "dedupe":
+            file_ext = fp.suffix.upper()
+            is_video_file = file_ext in {e.upper() for e in VIDEO_EXTS}
+
+            if is_video_file:
+                # Videos: exact-copy detection via file size + partial MD5.
+                # pHash is wrong for trail cameras — fixed background means any two
+                # clips of the same duration look perceptually identical even when
+                # they're completely different recordings.
+                key = compute_quick_hash(str(fp))
+                if key is None:
+                    counts["skip"] = counts.get("skip", 0) + 1
+                    push({"type": "progress", "current": i, "total": total,
+                          "file": name, "cat": "skip", "conf": 0, "thumb": None})
+                    continue
+                is_dup = key in seen_video_hashes
+                if not is_dup:
+                    seen_video_hashes.add(key)
+            else:
+                # Images: perceptual hash — catches same photo re-saved at
+                # different JPEG quality, slightly cropped, renamed, etc.
+                frames = load_frames(str(fp))
+                if not frames:
+                    counts["skip"] = counts.get("skip", 0) + 1
+                    push({"type": "progress", "current": i, "total": total,
+                          "file": name, "cat": "skip", "conf": 0, "thumb": None})
+                    continue
+                hash_list = compute_phash_list(frames)
+                if not hash_list:
+                    counts["skip"] = counts.get("skip", 0) + 1
+                    push({"type": "progress", "current": i, "total": total,
+                          "file": name, "cat": "skip", "conf": 0, "thumb": None})
+                    continue
+                is_dup = is_video_dup(hash_list, seen_hash_objs)
+                if not is_dup:
+                    seen_hash_objs.append(hash_list)
+            if is_dup:
+                dup_dir = out / "Duplicates"
+                dup_dir.mkdir(parents=True, exist_ok=True)
+                dest = dup_dir / name
+                if dest.exists():
+                    stem, suffix = fp.stem, fp.suffix
+                    counter = 1
+                    while dest.exists():
+                        dest = dup_dir / f"{stem}_{counter}{suffix}"
+                        counter += 1
+                shutil.copy2(str(fp), dest)
+                counts["duplicate"] = counts.get("duplicate", 0) + 1
+                folders["duplicate"] = str(dup_dir)
+                _dup_files.append({"file": name, "folder": str(dup_dir),
+                                   "thumb": fp.stem + ".jpg"})
+                push({"type": "progress", "current": i, "total": total,
+                      "file": name, "cat": "collected", "conf": 0,
+                      "thumb": None, "label": "Duplicates"})
+            else:
+                unique_dir = out / "Unique"
+                unique_dir.mkdir(parents=True, exist_ok=True)
+                dest = unique_dir / name
+                if dest.exists():
+                    stem, suffix = fp.stem, fp.suffix
+                    counter = 1
+                    while dest.exists():
+                        dest = unique_dir / f"{stem}_{counter}{suffix}"
+                        counter += 1
+                shutil.copy2(str(fp), dest)
+                counts["unique"] = counts.get("unique", 0) + 1
+                folders["unique"] = str(unique_dir)
+                push({"type": "progress", "current": i, "total": total,
+                      "file": name, "cat": "collected", "conf": 0,
+                      "thumb": None, "label": "Unique"})
+            continue
+
         # ── SORT / FILTER mode: AI detection ─────────────────────────────
         frames = load_frames(str(fp))
         if not frames:
@@ -778,13 +1005,18 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
 
         # ── SORT mode ─────────────────────────────────────────────────────
         if not all_matches:
-            unsorted_dir = out / "Unsorted"
-            unsorted_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(str(fp), unsorted_dir / name)
-            folders["unsorted"] = str(unsorted_dir)
-            counts["unsorted"] = counts.get("unsorted", 0) + 1
-            push({"type": "progress", "current": i, "total": total,
-                  "file": name, "cat": "unsorted", "conf": 0, "thumb": None})
+            if copy_unsorted:
+                unsorted_dir = out / "Unsorted"
+                unsorted_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(fp), unsorted_dir / name)
+                folders["unsorted"] = str(unsorted_dir)
+                counts["unsorted"] = counts.get("unsorted", 0) + 1
+                push({"type": "progress", "current": i, "total": total,
+                      "file": name, "cat": "unsorted", "conf": 0, "thumb": None})
+            else:
+                counts["skipped"] = counts.get("skipped", 0) + 1
+                push({"type": "progress", "current": i, "total": total,
+                      "file": name, "cat": "other", "conf": 0, "thumb": None})
             check_faces(fp, name, frames, out, i, total, face_profiles,
                         counts, folders, None)
             continue
@@ -796,10 +1028,21 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
         all_labels = [next((c["label"] for c in CATEGORIES if c["key"] == k), k.capitalize())
                       for k, _ in to_copy]
 
+        # Date sub-folder path when date_in_cat is enabled
+        date_subpath = ""
+        if date_in_cat:
+            try:
+                _dt = get_photo_date(str(fp))
+                date_subpath = _dt.strftime("%Y/%B")
+            except Exception:
+                date_subpath = ""
+
         for cat_key, conf in to_copy:
-            cat_dir = out / cat_key.capitalize()
+            cat_dir = (out / cat_key.capitalize() / date_subpath
+                       if date_subpath else out / cat_key.capitalize())
             cat_dir.mkdir(parents=True, exist_ok=True)
-            folders[cat_key] = str(cat_dir)
+            # Always store the top-level category folder so "Open folder" works
+            folders[cat_key] = str(out / cat_key.capitalize())
             dest_file = cat_dir / name
             if dest_file.exists():
                 stem, suffix = fp.stem, fp.suffix
@@ -866,6 +1109,11 @@ def index():
     return render_template("index.html", categories=CATEGORIES, default_output=default_output)
 
 
+@app.route("/help")
+def help_page():
+    return render_template("help.html")
+
+
 @app.route("/api/categories")
 def get_categories():
     return jsonify(CATEGORIES)
@@ -887,9 +1135,28 @@ def get_drives():
     return jsonify(drives)
 
 
+def _run_sort_safe(*args, **kwargs):
+    """
+    Crash-guard wrapper for run_sort.
+    If run_sort throws an unhandled exception the SSE generator would loop
+    forever because _status never reaches 'done'.  This wrapper catches any
+    exception, logs it to the stream, and forces _status → 'done' so the
+    SSE generator always terminates.
+    """
+    global _status
+    try:
+        run_sort(*args, **kwargs)
+    except Exception as exc:
+        push({"type": "log",
+              "text": f"[ERROR] Scan crashed unexpectedly: {exc}",
+              "cat": "error"})
+        push({"type": "done", "results": _results})
+        _status = "done"
+
+
 @app.route("/api/start", methods=["POST"])
 def start():
-    global _sort_thread, _stop_event, _log, _results, _status
+    global _sort_thread, _stop_event, _log, _results, _status, _scan_id
     if _sort_thread and _sort_thread.is_alive():
         return jsonify({"error": "Already running"})
     data         = request.json or {}
@@ -902,14 +1169,17 @@ def start():
     multi_copy   = bool(data.get("multiCopy", False))
     filter_all   = bool(data.get("filterAll", True))
     write_xmp    = bool(data.get("writeXmp", False))
+    date_in_cat   = bool(data.get("dateInCat", False))
+    copy_unsorted = bool(data.get("copyUnsorted", False))
     _stop_event  = threading.Event()
     _log         = []
     _results     = {}
     _status      = "running"
+    _scan_id    += 1          # invalidate any SSE generators from previous scans
     _sort_thread = threading.Thread(
-        target=run_sort,
+        target=_run_sort_safe,
         args=(source, output, confidence, enabled_keys, file_types,
-              mode, multi_copy, filter_all, write_xmp),
+              mode, multi_copy, filter_all, write_xmp, date_in_cat, copy_unsorted),
         daemon=True,
     )
     _sort_thread.start()
@@ -929,17 +1199,29 @@ def status():
 
 @app.route("/api/stream")
 def stream():
+    # Capture the scan generation at connection time.
+    # If a new scan starts (_scan_id changes) this generator exits immediately,
+    # freeing the Flask thread and preventing thread-pool exhaustion on re-runs.
+    my_id = _scan_id
+
     def generate():
         sent = 0
-        while True:
-            with _log_lock:
-                chunk = _log[sent:]
-            for msg in chunk:
-                yield f"data: {json.dumps(msg)}\n\n"
-                sent += 1
-            if _status in ("done", "idle") and sent >= len(_log):
-                break
-            time.sleep(0.15)
+        try:
+            while True:
+                # Stale stream — a new scan has started; stop immediately.
+                if _scan_id != my_id:
+                    break
+                with _log_lock:
+                    chunk = _log[sent:]
+                for msg in chunk:
+                    yield f"data: {json.dumps(msg)}\n\n"
+                    sent += 1
+                if _status in ("done", "idle") and sent >= len(_log):
+                    break
+                time.sleep(0.15)
+        except GeneratorExit:
+            pass   # browser closed the connection — exit cleanly
+
     return Response(generate(), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
@@ -949,8 +1231,15 @@ def open_folder():
     folder = (request.json or {}).get("folder", "")
     p = Path(folder)
     p.mkdir(parents=True, exist_ok=True)
-    # shell=True routes through Windows start, which grants foreground focus
-    subprocess.Popen(f'start "" "{str(p)}"', shell=True)
+    # ShellExecuteW opens the folder directly in Explorer and brings it to the foreground.
+    # More reliable than subprocess start "" on Windows 11 because it doesn't go through
+    # a cmd.exe chain that can lose the foreground-window grant before Explorer spawns.
+    try:
+        import ctypes
+        SW_SHOW = 5
+        ctypes.windll.shell32.ShellExecuteW(None, "explore", str(p), None, None, SW_SHOW)
+    except Exception:
+        subprocess.Popen(f'start "" "{str(p)}"', shell=True)
     return jsonify({"ok": True})
 
 
@@ -1122,6 +1411,24 @@ def move_file():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/diskspace")
+def diskspace():
+    """Return free and total bytes for the drive containing the given path."""
+    path = request.args.get("path", "").strip()
+    if not path:
+        return jsonify({"error": "No path provided"}), 400
+    try:
+        p = Path(path)
+        # Use the drive root if the folder doesn't exist yet
+        check = p
+        while not check.exists() and check != check.parent:
+            check = check.parent
+        stat = shutil.disk_usage(str(check))
+        return jsonify({"free": stat.free, "total": stat.total, "used": stat.used})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/browse")
 def browse():
     """Return child directories of the given path for the folder picker UI."""
@@ -1170,6 +1477,15 @@ def set_reference():
         return jsonify({"name": _ref_name})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/reference/clear", methods=["POST"])
+def clear_reference():
+    """Clear the stored reference image so a new one can be uploaded."""
+    global _ref_embedding, _ref_name
+    _ref_embedding = None
+    _ref_name      = ""
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
