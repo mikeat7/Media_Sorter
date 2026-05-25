@@ -221,17 +221,33 @@ All features implemented and bug-fixed. Active final testing in progress.
 **Modes tested and confirmed working:**
 - Find Duplicates (dedupe) — videos exact-copy, images pHash. Full 1926-file library: 1302 unique, 624 duplicates, all correct.
 - Scan For Media (collect) — confirmed working
-- NetworkError / multi-scan hang — root cause identified and fixed (see Key technical decisions)
+- Sort By Category (sort) — PARTIALLY tested. MegaDetector (animals/people/vehicles) and face recognition confirmed working on 2404-file library. CLIP categories broken at 50% slider (threshold too high — now fixed). Rerun needed at 25% slider to validate CLIP categories.
+
+**Bugs fixed during Sort By Category test:**
+- CLIP threshold cap: formula now capped at 0.38 max. Previously at 50% slider CLIP threshold hit 0.56 — effectively disabled. All CLIP categories (Nature, Food, Indoor, etc.) returned 0 matches. Fix: min(0.38, ...) cap in run_sort clip_thresh calculation.
+- Source-inside-output: fixed for all modes (see Key technical decisions).
+- These fixes are in app.py but NOT yet pushed to GitHub — accumulating fixes for clean release after full test pass.
 
 **Modes not yet tested (continue from here):**
-- Sort By Category (sort) — AI detection, MegaDetector + CLIP
+- Sort By Category (sort) — rerun at 25% slider to validate CLIP categories (Nature, Indoor, Buildings, etc.)
 - Sort by Date (date) — EXIF → Year/Month folders
 - Sort by Location (location) — GPS → City folders
 - Find Photos With (filter) — AND logic multi-category
 - Find Similar Photos (similar) — CLIP image-to-image
 - Sort by Event (event) — time-gap clustering
 
-Continue testing remaining modes, then move to Phase 2 (Android).
+**Next session starting point:**
+1. Delete D:\c1_cleaned_and_sorted (incomplete test run, safe to delete — originals untouched in source)
+2. Restart app (Ctrl+C → Launch Media Sorter.bat)
+3. Run Sort By Category on D:\sorted_pictures\Unique_pictures → D:\c1_cleaned_and_sorted
+   - Slider: 25% (default)
+   - All categories ON
+   - Face profiles: Mike and Nancy already saved
+4. Let run overnight — ~13 hours for 2404 files
+5. Audit results: expect Animals, People, Vehicles, Night, Damaged + all CLIP categories populated
+6. Then proceed to test remaining modes one by one
+
+**Do NOT push to GitHub until all modes pass testing.** v2.0 was released during testing — accumulate remaining fixes for a clean v2.1 release when Phase 1 is complete.
 
 ### Features implemented (test each):
 - MegaDetector: animals, people, vehicles

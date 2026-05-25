@@ -492,6 +492,12 @@ def load_frames(filepath, timeout_sec=30):
     Returns list of frames regardless of file type.
     Runs in a thread with a timeout so a single corrupt or enormous file
     cannot stall the entire scan indefinitely.
+
+    IMPORTANT: executor.shutdown(wait=False) is required.
+    Using `with ThreadPoolExecutor() as ex:` calls shutdown(wait=True) on exit,
+    which blocks forever if the inner thread is still hung after a TimeoutError.
+    shutdown(wait=False) releases the main thread immediately — the hung thread
+    continues as a daemon and is killed when the process exits (Python 3.9+).
     """
     import concurrent.futures
     def _load():
@@ -501,15 +507,17 @@ def load_frames(filepath, timeout_sec=30):
             return [img] if img is not None else []
         return extract_frames(str(filepath))
 
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            future = ex.submit(_load)
-            return future.result(timeout=timeout_sec)
+        future = executor.submit(_load)
+        return future.result(timeout=timeout_sec)
     except concurrent.futures.TimeoutError:
         log(f"[TIMEOUT] Skipped (took >{timeout_sec}s): {Path(filepath).name}")
         return []
     except Exception:
         return []
+    finally:
+        executor.shutdown(wait=False)  # never wait — hung threads become daemons
 
 
 # ── per-frame detectors ───────────────────────────────────────────────────────
@@ -976,8 +984,11 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
                   "file": name, "cat": "skip", "conf": 0, "thumb": None})
             continue
 
-        # CLIP threshold scales with slider: default 15%→0.21, higher = stricter
-        clip_thresh = max(0.15, CLIP_THRESHOLD + (confidence - MD_CONFIDENCE))
+        # CLIP threshold scales with slider but is capped at 0.38.
+        # CLIP cosine similarity has a much narrower useful range than MegaDetector —
+        # above ~0.38 almost nothing passes, effectively disabling CLIP entirely.
+        # The cap lets the slider tighten MegaDetector (e.g. 50%) without breaking CLIP.
+        clip_thresh = max(0.15, min(0.38, CLIP_THRESHOLD + (confidence - MD_CONFIDENCE)))
         all_matches = classify_all(str(fp), frames, enabled_cats, md_model,
                                    confidence, _seen_hashes,
                                    clip_threshold=clip_thresh)
