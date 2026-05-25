@@ -46,12 +46,12 @@ MD_MODEL_URL       = "https://github.com/agentmorris/MegaDetector/releases/downl
 CUSTOM_CATS_FILE      = APP_DIR / "custom_categories.json"
 CAT_THRESHOLDS_FILE   = APP_DIR / "category_thresholds.json"
 FACE_PROFILES_DIR     = APP_DIR / "face_profiles"
-FACE_THRESHOLD     = 0.85   # L2 distance; lower = stricter
+FACE_THRESHOLD     = 0.72   # L2 distance; lower = stricter. 0.85 was too loose — nature/random photos were matching face profiles. 0.72 requires a much closer face match.
 
 # ── constants ─────────────────────────────────────────────────────────────────
 SAMPLE_SECS    = [2, 4, 6, 8, 10]
-IR_THRESHOLD   = 12      # mean channel diff threshold; raised to catch trail-cam IR with slight LED cast
-BLUR_THRESHOLD = 80
+IR_THRESHOLD   = 8       # mean channel diff threshold. 8 catches true IR/grayscale; 12 was too loose for general photos (flagged muted-colour daylight shots as Night)
+BLUR_THRESHOLD = 150     # Laplacian variance. 80 was too sensitive — clear photos with smooth backgrounds (bokeh, sky, walls) scored below 80 and landed in Damaged. 150 catches genuinely blurry photos only.
 MD_CONFIDENCE  = 0.15
 CLIP_THRESHOLD = 0.21
 HASH_THRESHOLD = 8        # perceptual hash difference for duplicates
@@ -707,6 +707,8 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
     if md_model: md_model.conf = confidence
     if need_clip:
         load_clip(enabled_keys if mode != "similar" else None)
+        clip_cat_count = len([c for c in enabled_cats if c["detector"] == "clip"])
+        push({"type": "log", "text": f"CLIP active — {clip_cat_count} text categories encoded, threshold {round(max(0.15, min(0.38, CLIP_THRESHOLD + (confidence - MD_CONFIDENCE))), 3)}", "cat": "info"})
     face_profiles = load_face_profiles() if mode in ("sort", "filter") else {}
     need_faces    = bool(face_profiles) and mode in ("sort", "filter")
     if need_faces and face_profiles:
