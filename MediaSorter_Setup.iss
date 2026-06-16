@@ -3,7 +3,7 @@
 ; Output: dist\MediaSorter_Setup.exe  (~5 MB, downloads AI models on first run)
 
 #define AppName      "Media Sorter"
-#define AppVersion   "1.0"
+#define AppVersion   "3.0"
 #define AppPublisher "mikeat7"
 #define AppURL       "https://github.com/mikeat7/Media_Sorter"
 

@@ -242,11 +242,11 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
     <div style="margin-top:14px">
       <label>File types to process</label>
       <div class="pill-row">
-        <label class="pill on" id="pill-video">
-          <input type="checkbox" checked onchange="togglePill(this,'pill-video')"> 🎬 Videos (MP4, MOV…)
+        <label class="pill" id="pill-video">
+          <input type="checkbox" onchange="togglePill(this,'pill-video')"> 🎬 Videos (MP4, MOV…)
         </label>
-        <label class="pill on" id="pill-image">
-          <input type="checkbox" checked onchange="togglePill(this,'pill-image')"> 🖼️ Photos (JPG, PNG…)
+        <label class="pill" id="pill-image">
+          <input type="checkbox" onchange="togglePill(this,'pill-image')"> 🖼️ Photos (JPG, PNG…)
         </label>
       </div>
     </div>
@@ -323,14 +323,17 @@ select.move-sel{flex:1;background:#111511;border:1px solid #2e3e2e;color:#8aaa8a
       </div>
     </div>
 
-    <!-- confidence slider — hidden in collect/date/location modes -->
+    <!-- confidence slider — only shown when it actually does something -->
     <div id="conf-section" style="margin-top:16px">
-      <label>Detection confidence (AI sensitivity):&nbsp;<span class="sval" id="conf-val">25%</span></label>
+      <label id="conf-label">People / Animal / Vehicle sensitivity:&nbsp;<span class="sval" id="conf-val">25%</span></label>
       <div class="slider-row">
-        <span style="font-size:.72rem;color:#4a6a4a">More finds</span>
+        <span style="font-size:.72rem;color:#4a6a4a">Catch more</span>
         <input type="range" id="confidence" min="5" max="60" value="25"
                oninput="document.getElementById('conf-val').textContent=this.value+'%'">
-        <span style="font-size:.72rem;color:#4a6a4a">Fewer false hits</span>
+        <span style="font-size:.72rem;color:#4a6a4a">Only confident</span>
+      </div>
+      <div id="conf-note" style="font-size:.7rem;color:#6a7a8a;margin-top:5px">
+        Only affects People, Animals &amp; Vehicles. The other categories (Cats, Pets, Nature, Flowers…) ignore this — leave it at 25% unless People/Animals are over- or under-detected.
       </div>
     </div>
 
@@ -542,23 +545,16 @@ function setMode(mode) {
   document.getElementById('mode-desc').textContent = MODE_DESCS[mode] || '';
 
   const needCats = mode === 'sort' || mode === 'filter';
-  const needConf = needCats || mode === 'similar';
 
   document.getElementById('cats-section').style.display      = needCats  ? '' : 'none';
   document.getElementById('similar-section').style.display   = mode === 'similar' ? '' : 'none';
-  document.getElementById('conf-section').style.display      = needConf  ? '' : 'none';
   document.getElementById('thresh-panel').style.display      = needCats  ? '' : 'none';
   document.getElementById('multicopy-row').style.display     = mode === 'sort' ? '' : 'none';
   document.getElementById('xmp-row').style.display           = mode === 'sort' ? '' : 'none';
   document.getElementById('date-in-cat-row').style.display   = mode === 'sort' ? '' : 'none';
   document.getElementById('unsorted-row').style.display      = mode === 'sort' ? '' : 'none';
 
-  const confLabel = document.querySelector('#conf-section label');
-  if (confLabel) {
-    confLabel.innerHTML = mode === 'similar'
-      ? 'Similarity strictness — how closely photos must match: <span class="sval" id="conf-val">' + document.getElementById('confidence').value + '%</span>'
-      : 'Detection confidence (AI sensitivity):&nbsp;<span class="sval" id="conf-val">' + document.getElementById('confidence').value + '%</span>';
-  }
+  updateConfVisibility();
 
   const title = document.getElementById('cats-title');
   if (mode === 'filter') {
@@ -596,23 +592,66 @@ function buildCatGrid() {
     div.className = 'cat-toggle';
     div.id = 'cat-' + cat.key;
     div.style.setProperty('--cat-color', cat.color);
+    const isCustom = !!cat.custom;
+    const promptText = cat.clip_prompt || '';
+    const promptSnip = promptText.length > 40 ? promptText.slice(0, 40) + '…' : promptText;
+    const delBtn = isCustom
+      ? `<span class="del" onclick="event.preventDefault();deleteCategory('${cat.key}')" title="Delete category" style="margin-left:4px;cursor:pointer;font-size:.8rem;color:#a06a8a;user-select:none">✕</span>`
+      : '';
+    const subLabel = isCustom
+      ? `<span title="${promptText}">Custom${promptSnip ? ' · ' + promptSnip : ''}</span>`
+      : subHtml;
     div.innerHTML = `
       <input type="checkbox" onchange="toggleCat(this,'cat-${cat.key}')">
       <span class="emoji">${cat.emoji}</span>
       <span class="info">
         <div class="name">${cat.label}</div>
-        <div class="sub">${subHtml}</div>
+        <div class="sub">${subLabel}</div>
       </span>
-      <span class="dot"></span>`;
+      <span class="dot"></span>${delBtn}`;
     grid.appendChild(div);
   });
 }
 
 function toggleCat(cb, id) {
   document.getElementById(id).classList.toggle('on', cb.checked);
+  updateConfVisibility();
 }
 function togglePill(cb, id) {
   document.getElementById(id).classList.toggle('on', cb.checked);
+}
+
+// The confidence slider only affects MegaDetector categories (People/Animals/Vehicles)
+// and the Similar-photo strictness. Show it only when it actually does something —
+// otherwise users crank it to max thinking higher = better and break detection.
+const MD_KEYS = ['person', 'animal', 'vehicle'];
+function updateConfVisibility() {
+  const section = document.getElementById('conf-section');
+  const label   = document.getElementById('conf-label');
+  const note    = document.getElementById('conf-note');
+  const val     = document.getElementById('confidence').value;
+  if (!section) return;
+
+  if (currentMode === 'similar') {
+    section.style.display = '';
+    label.innerHTML = 'Similarity strictness — how closely photos must match:&nbsp;<span class="sval" id="conf-val">' + val + '%</span>';
+    note.style.display = 'none';
+    return;
+  }
+
+  // sort / filter: only relevant if a People/Animal/Vehicle category is enabled
+  const mdOn = (currentMode === 'sort' || currentMode === 'filter') &&
+    MD_KEYS.some(k => {
+      const el = document.querySelector('#cat-' + k + ' input');
+      return el && el.checked;
+    });
+  if (mdOn) {
+    section.style.display = '';
+    label.innerHTML = 'People / Animal / Vehicle sensitivity:&nbsp;<span class="sval" id="conf-val">' + val + '%</span>';
+    note.style.display = '';
+  } else {
+    section.style.display = 'none';
+  }
 }
 function setAll(on) {
   document.querySelectorAll('.cat-toggle input').forEach(cb => {
@@ -760,14 +799,18 @@ function handle(msg) {
     document.getElementById('prog-text').textContent = '0 / ' + msg.total + ' files';
     document.getElementById('res-card').style.display = '';
 
-    const isSortLike = currentMode === 'sort' || currentMode === 'filter';
+    const isSortLike = currentMode === 'sort';
+    const isFilter   = currentMode === 'filter';  // filter uses simple rows (combined label)
     const isSimilar  = currentMode === 'similar';
-    const isSimple   = !isSortLike && !isSimilar;   // collect, date, location, dedupe, event
+    const isSimple   = !isSortLike && !isFilter && !isSimilar;
     document.getElementById('res-grid').style.display   = (isSortLike || isSimilar) ? '' : 'none';
-    document.getElementById('simple-res').style.display = isSimple ? '' : 'none';
+    document.getElementById('simple-res').style.display = (isSimple || isFilter) ? '' : 'none';
 
     if (isSortLike) {
       buildResultCards(msg.categories);
+    } else if (isFilter) {
+      simpleRows = {};
+      document.getElementById('simple-res').innerHTML = '<div style="font-size:.78rem;color:#88a888;margin-bottom:8px">Matched folders (files must match ALL selected categories):</div>';
     } else if (isSimilar) {
       document.getElementById('res-grid').innerHTML = '';
       const refLabel = document.getElementById('ref-label').value || 'reference photo';
@@ -928,12 +971,17 @@ function handle(msg) {
 
     const c = msg.results.counts || {};
     const parts = Object.entries(c)
-      .filter(([k, v]) => v > 0 && k !== 'other' && k !== 'skip')
+      .filter(([k, v]) => v > 0 && k !== 'other' && k !== 'skip' && k !== 'dup_skipped')
       .map(([k, v]) => {
+        if (k.startsWith('face_')) {
+          const nm = k.slice(5).replace(/_/g,' ').replace(/\b\w/g, ch => ch.toUpperCase());
+          return '👤 ' + nm + ': ' + v;
+        }
         const def = CATS.find(x => x.key === k);
-        return (def ? def.emoji + ' ' : '') + k + ': ' + v;
+        return def ? (def.emoji + ' ' + def.label + ': ' + v) : (k + ': ' + v);
       });
     appendLog('Complete — ' + (parts.join('   ') || 'nothing copied') +
+              (c.dup_skipped ? '   🔁 duplicates skipped: ' + c.dup_skipped : '') +
               (c.other ? '   other: ' + c.other : '') +
               (c.skip  ? '   skipped: ' + c.skip  : ''), 'l-info');
     evtSrc.close();
@@ -1072,19 +1120,37 @@ async function addCategory() {
   div.className = 'cat-toggle';
   div.id = 'cat-' + cat.key;
   div.style.setProperty('--cat-color', cat.color);
+  const promptSnip = prompt ? (prompt.length > 40 ? prompt.slice(0, 40) + '…' : prompt) : '';
   div.innerHTML = `
     <input type="checkbox" onchange="toggleCat(this,'cat-${cat.key}')">
     <span class="emoji">${cat.emoji}</span>
     <span class="info">
       <div class="name">${cat.label}</div>
-      <div class="sub">Custom / CLIP</div>
+      <div class="sub" title="${prompt}">Custom${promptSnip ? ' · ' + promptSnip : ''}</div>
     </span>
-    <span class="dot"></span>`;
+    <span class="dot"></span>
+    <span class="del" onclick="event.preventDefault();deleteCategory('${cat.key}')" title="Delete category" style="margin-left:4px;cursor:pointer;font-size:.8rem;color:#a06a8a;user-select:none">✕</span>`;
   document.getElementById('cat-grid').appendChild(div);
 
   // Clear inputs
   document.getElementById('new-cat-name').value  = '';
   document.getElementById('new-cat-prompt').value = '';
+}
+
+async function deleteCategory(key) {
+  if (!confirm(`Delete custom category "${key}"? This cannot be undone.`)) return;
+  const r = await fetch('/api/categories/delete', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({key}),
+  });
+  const res = await r.json();
+  if (res.error) { alert(res.error); return; }
+  // Remove from runtime CATS list and grid
+  const idx = CATS.findIndex(c => c.key === key);
+  if (idx !== -1) CATS.splice(idx, 1);
+  delete thumbCounts[key];
+  const el = document.getElementById('cat-' + key);
+  if (el) el.remove();
 }
 
 

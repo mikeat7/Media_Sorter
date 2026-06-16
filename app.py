@@ -46,14 +46,14 @@ MD_MODEL_URL       = "https://github.com/agentmorris/MegaDetector/releases/downl
 CUSTOM_CATS_FILE      = APP_DIR / "custom_categories.json"
 CAT_THRESHOLDS_FILE   = APP_DIR / "category_thresholds.json"
 FACE_PROFILES_DIR     = APP_DIR / "face_profiles"
-FACE_THRESHOLD     = 0.72   # L2 distance; lower = stricter. 0.85 was too loose — nature/random photos were matching face profiles. 0.72 requires a much closer face match.
+FACE_THRESHOLD     = 0.78   # L2 distance; lower = stricter. 0.85 matched non-faces; 0.72 was too strict and missed real people (e.g. Mike never recognized). 0.78 is the middle dial — recovers harder-angle faces while still rejecting most non-face matches.
 
 # ── constants ─────────────────────────────────────────────────────────────────
 SAMPLE_SECS    = [2, 4, 6, 8, 10]
-IR_THRESHOLD   = 8       # mean channel diff threshold. 8 catches true IR/grayscale; 12 was too loose for general photos (flagged muted-colour daylight shots as Night)
-BLUR_THRESHOLD = 150     # Laplacian variance. 80 was too sensitive — clear photos with smooth backgrounds (bokeh, sky, walls) scored below 80 and landed in Damaged. 150 catches genuinely blurry photos only.
+IR_THRESHOLD   = 3       # mean channel diff threshold. LOWER = stricter. 3 = only true grayscale IR; 5 still caught low-saturation colour photos as Night.
+BLUR_THRESHOLD = 45      # Laplacian variance. Blurry photos have LOW variance, so we flag var < threshold — LOWER = stricter. 150/300 caught sharp photos (bokeh, smooth sky/walls); only genuinely out-of-focus shots fall below 45.
 MD_CONFIDENCE  = 0.15
-CLIP_THRESHOLD = 0.21
+CLIP_THRESHOLD = 0.22    # Fixed absolute threshold — NOT adjusted by confidence slider. Scores for good matches: broad (nature/snow/flowers) 0.22-0.26; specific (cats/butterflies/salmon) 0.27-0.30.
 HASH_THRESHOLD = 8        # perceptual hash difference for duplicates
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".heic", ".webp"}
@@ -92,7 +92,7 @@ CATEGORIES = [
     # ── CLIP ──
     {"key": "pets",       "label": "Pets",           "emoji": "🐕", "color": "#c8782a",
      "detector": "clip",
-     "clip_prompt": "a photo of a pet dog or cat"},
+     "clip_prompt": "a pet dog, cat, rabbit, hamster, or other domestic pet animal at home"},
     {"key": "nature",     "label": "Nature",         "emoji": "🌿", "color": "#4a9a4a",
      "detector": "clip",
      "clip_prompt": "a photo of nature, forest, wilderness, mountains, lake, river, or natural landscape outdoors"},
@@ -107,7 +107,7 @@ CATEGORIES = [
      "clip_prompt": "a photo of buildings, architecture, houses, city, streets, or urban environment"},
     {"key": "flowers",    "label": "Flowers",        "emoji": "🌸", "color": "#d060a0",
      "detector": "clip",
-     "clip_prompt": "a close-up photo of flowers, plants, or botanical subjects"},
+     "clip_prompt": "flowers, blooming plants, wildflowers, floral garden, colorful flower petals or botanical subjects"},
     {"key": "food",       "label": "Food",           "emoji": "🍽️", "color": "#bf6a3a",
      "detector": "clip",
      "clip_prompt": "a close-up photo of food, a meal, drink, snack, or cuisine on a plate or table"},
@@ -120,9 +120,6 @@ CATEGORIES = [
     {"key": "indoor",     "label": "Indoor",         "emoji": "🏠", "color": "#5a7abf",
      "detector": "clip",
      "clip_prompt": "a photo taken indoors, inside a room, house interior, or building interior"},
-    {"key": "events",     "label": "Events",         "emoji": "🎉", "color": "#bf4a8a",
-     "detector": "clip",
-     "clip_prompt": "a photo at a party, celebration, birthday, wedding, or social gathering event"},
 ]
 
 # ── load persisted custom categories ─────────────────────────────────────────
@@ -218,7 +215,15 @@ def check_faces(fp, name, frames, out, i, total, face_profiles, counts, folders,
             face_dir = out / f"People_{profile_name}"
             face_dir.mkdir(parents=True, exist_ok=True)
             face_key = f"face_{profile_name.lower()}"
-            shutil.copy2(str(fp), face_dir / name)
+            # Collision-safe naming so the count matches the files on disk
+            # (duplicate source filenames would otherwise overwrite each other).
+            dest_face = face_dir / name
+            if dest_face.exists():
+                counter = 1
+                while dest_face.exists():
+                    dest_face = face_dir / f"{fp.stem}_{counter}{fp.suffix}"
+                    counter += 1
+            shutil.copy2(str(fp), dest_face)
             folders[face_key] = str(face_dir)
             counts[face_key]  = counts.get(face_key, 0) + 1
             conf = round(max(0.0, 1.0 - best_dist / FACE_THRESHOLD), 2)
@@ -671,6 +676,10 @@ def classify_all(filepath, frames, enabled_cats, md_model, confidence, seen_hash
             # Per-category override takes precedence over the global CLIP threshold
             thresh = _cat_thresholds.get(key, clip_threshold)
             found, conf = run_clip_cat(frames, key, threshold=thresh)
+            if conf > 0.15:   # log any meaningful CLIP score so threshold tuning is visible
+                push({"type": "log",
+                      "text": f"  CLIP {key}: {round(conf, 3)} vs threshold {round(thresh, 3)}{'  ✓' if found else ''}",
+                      "cat": "info"})
             if found:
                 matches.append((key, conf))
 
@@ -708,7 +717,7 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
     if need_clip:
         load_clip(enabled_keys if mode != "similar" else None)
         clip_cat_count = len([c for c in enabled_cats if c["detector"] == "clip"])
-        push({"type": "log", "text": f"CLIP active — {clip_cat_count} text categories encoded, threshold {round(max(0.15, min(0.38, CLIP_THRESHOLD + (confidence - MD_CONFIDENCE))), 3)}", "cat": "info"})
+        push({"type": "log", "text": f"CLIP active — {clip_cat_count} text categories encoded, threshold {CLIP_THRESHOLD} (fixed — not slider-adjusted)", "cat": "info"})
     face_profiles = load_face_profiles() if mode in ("sort", "filter") else {}
     need_faces    = bool(face_profiles) and mode in ("sort", "filter")
     if need_faces and face_profiles:
@@ -728,6 +737,9 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
     # the prefix check would exclude every file.  In that case skip the check — rglob is
     # already scoped to source so we can't accidentally re-process other output subfolders.
     source_inside_output = src_upper.startswith(out_upper + os.sep.upper())
+    # Always skip the thumbs cache folder (in output or in source if they overlap)
+    thumbs_upper = (str(out / "thumbs") + os.sep).upper()
+    src_thumbs_upper = (str(src_path / "thumbs") + os.sep).upper()
     files = []
     for p in src_path.rglob("*"):
         if not p.is_file():
@@ -736,13 +748,47 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
             continue
         if not source_inside_output and str(p).upper().startswith(out_upper + os.sep.upper()):
             continue   # don't re-process our own output
+        p_upper = str(p).upper() + os.sep.upper()
+        if p_upper.startswith(thumbs_upper) or p_upper.startswith(src_thumbs_upper):
+            continue   # skip thumbnail cache regardless of folder layout
         files.append(p)
     files.sort(key=lambda p: str(p).upper())
     total  = len(files)
 
+    # ── Clear THIS app's previously-generated result folders so every run starts
+    # fresh and the on-disk file counts match the report. The app only ever copies
+    # FROM the source (never modifies it), so output is always rebuildable — safe to wipe.
+    # Skipped when the source lives inside the output tree (would delete the source).
+    if mode in ("sort", "filter", "similar", "dedupe") and not source_inside_output:
+        def _rm(path):
+            try:
+                if path.is_dir():
+                    shutil.rmtree(path)
+                elif path.exists():
+                    path.unlink()
+            except Exception:
+                pass
+        for c in enabled_cats:
+            _rm(out / c["key"].capitalize())
+        for extra in ("Unsorted", "Duplicates", "Unique", "thumbs"):
+            _rm(out / extra)
+        try:
+            for d in list(out.glob("People_*")) + list(out.glob("*_AND_*")):
+                _rm(d)
+        except Exception:
+            pass
+        push({"type": "log", "text": "Cleared previous results in the output folder — starting fresh so counts match the files on disk.", "cat": "info"})
+
     counts    = {}
     thumb_map = {}
     folders   = {}
+    # Automatic dedup for sort/filter: remember every unique photo's fingerprint so
+    # the same image isn't copied twice into the category folders. First occurrence
+    # is filed normally; later duplicates are skipped.
+    # Exception: if the user explicitly enabled the "Duplicates" category, they want
+    # dupes routed to a folder for review instead of silently skipped — so defer to that.
+    _dedup_seen = []
+    _auto_dedup = not any(c["key"] == "duplicate" for c in enabled_cats)
 
     push({"type": "start", "total": total, "mode": mode, "categories": [
         {"key": c["key"], "label": c["label"], "emoji": c["emoji"], "color": c["color"]}
@@ -955,11 +1001,19 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
                 shutil.copy2(str(fp), dest)
                 counts["duplicate"] = counts.get("duplicate", 0) + 1
                 folders["duplicate"] = str(dup_dir)
+                dup_thumb = None
+                if frames:
+                    thumbs_dir.mkdir(parents=True, exist_ok=True)
+                    dup_thumb = fp.stem + ".jpg"
+                    small = cv2.resize(frames[0],
+                        (320, int(frames[0].shape[0] * 320 / max(frames[0].shape[1], 1))))
+                    cv2.imwrite(str(thumbs_dir / dup_thumb), small,
+                                [cv2.IMWRITE_JPEG_QUALITY, 75])
                 _dup_files.append({"file": name, "folder": str(dup_dir),
-                                   "thumb": fp.stem + ".jpg"})
+                                   "thumb": dup_thumb})
                 push({"type": "progress", "current": i, "total": total,
                       "file": name, "cat": "collected", "conf": 0,
-                      "thumb": None, "label": "Duplicates"})
+                      "thumb": dup_thumb, "label": "Duplicates"})
             else:
                 unique_dir = out / "Unique"
                 unique_dir.mkdir(parents=True, exist_ok=True)
@@ -986,11 +1040,22 @@ def run_sort(source_dir, output_dir, confidence, enabled_keys, file_types,
                   "file": name, "cat": "skip", "conf": 0, "thumb": None})
             continue
 
-        # CLIP threshold scales with slider but is capped at 0.38.
-        # CLIP cosine similarity has a much narrower useful range than MegaDetector —
-        # above ~0.38 almost nothing passes, effectively disabling CLIP entirely.
-        # The cap lets the slider tighten MegaDetector (e.g. 50%) without breaking CLIP.
-        clip_thresh = max(0.15, min(0.38, CLIP_THRESHOLD + (confidence - MD_CONFIDENCE)))
+        # Automatic dedup — if this photo is a near-identical copy of one we've
+        # already filed, skip it so each unique image is copied only once.
+        _hl = compute_phash_list(frames) if _auto_dedup else None
+        if _hl:
+            if is_video_dup(_hl, _dedup_seen):
+                counts["dup_skipped"] = counts.get("dup_skipped", 0) + 1
+                push({"type": "progress", "current": i, "total": total,
+                      "file": name, "cat": "skip", "conf": 0, "thumb": None,
+                      "label": "duplicate — skipped"})
+                continue
+            _dedup_seen.append(_hl)
+
+        # CLIP threshold is fixed — it does NOT scale with the confidence slider.
+        # MegaDetector and CLIP operate on completely different score scales (0-1 vs 0.15-0.32),
+        # so using the same slider for both caused CLIP to break above ~30% slider.
+        clip_thresh = CLIP_THRESHOLD
         all_matches = classify_all(str(fp), frames, enabled_cats, md_model,
                                    confidence, _seen_hashes,
                                    clip_threshold=clip_thresh)
@@ -1244,13 +1309,18 @@ def open_folder():
     folder = (request.json or {}).get("folder", "")
     p = Path(folder)
     p.mkdir(parents=True, exist_ok=True)
-    # ShellExecuteW opens the folder directly in Explorer and brings it to the foreground.
-    # More reliable than subprocess start "" on Windows 11 because it doesn't go through
-    # a cmd.exe chain that can lose the foreground-window grant before Explorer spawns.
     try:
         import ctypes
-        SW_SHOW = 5
-        ctypes.windll.shell32.ShellExecuteW(None, "explore", str(p), None, None, SW_SHOW)
+        user32 = ctypes.windll.user32
+        # Windows blocks background processes (our Flask server) from stealing focus.
+        # The reliable workaround: simulate an ALT key tap. Windows treats recent
+        # keyboard input as "user-initiated", which lifts the foreground lock and lets
+        # the new Explorer window come to the front instead of flashing in the taskbar.
+        user32.keybd_event(0x12, 0, 0, 0)   # ALT down
+        user32.keybd_event(0x12, 0, 2, 0)   # ALT up (KEYEVENTF_KEYUP)
+        user32.AllowSetForegroundWindow(-1)  # ASFW_ANY — grant focus to whoever we spawn
+        # SW_SHOWNORMAL (1) brings a fresh window forward; SW_SHOW (5) can stay behind.
+        ctypes.windll.shell32.ShellExecuteW(None, "explore", str(p), None, None, 1)
     except Exception:
         subprocess.Popen(f'start "" "{str(p)}"', shell=True)
     return jsonify({"ok": True})
@@ -1284,6 +1354,23 @@ def add_category():
     customs = [c for c in CATEGORIES if c.get("custom")]
     CUSTOM_CATS_FILE.write_text(json.dumps(customs, indent=2), encoding="utf-8")
     return jsonify(cat)
+
+
+@app.route("/api/categories/delete", methods=["POST"])
+def delete_category():
+    key = (request.json or {}).get("key", "")
+    global CATEGORIES
+    cat = next((c for c in CATEGORIES if c["key"] == key), None)
+    if not cat:
+        return jsonify({"error": "Category not found"}), 404
+    if not cat.get("custom"):
+        return jsonify({"error": "Only custom categories can be deleted"}), 400
+    CATEGORIES = [c for c in CATEGORIES if c["key"] != key]
+    customs = [c for c in CATEGORIES if c.get("custom")]
+    CUSTOM_CATS_FILE.write_text(json.dumps(customs, indent=2), encoding="utf-8")
+    # Clear any cached CLIP features for this category
+    _clip_feats.pop(key, None)
+    return jsonify({"ok": True})
 
 
 @app.route("/thumbs/<path:fname>")

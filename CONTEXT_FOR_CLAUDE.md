@@ -96,9 +96,10 @@ for distributing to others. After code changes, close browser tab, Ctrl+C termin
 ## Detection stack
 
 ### 1. IR / Night (no model, fastest)
-Mean channel diff < 12 across R/G/B → infrared frame. Majority vote. Always priority 1.
-(Threshold raised from 8 → 12 to catch trail-cam photos with slight IR LED red cast.
-B&W / grayscale photos always match this rule by design — zero channel difference.)
+Mean channel diff < IR_THRESHOLD (currently **3**) across R/G/B → infrared frame. Majority vote. Priority 1.
+LOWER = stricter. Tuned down to 3 because higher values flagged low-saturation colour photos as Night.
+LIMITATION: only detects grayscale IR (trail-cam style). It CANNOT detect colour night/flash
+photos — they have normal channel variance. This is a design limit, not a bug.
 
 ### 2. MegaDetector v5a (~290 MB, one-time download)
 torch.hub.load('ultralytics/yolov5', 'custom', trust_repo=True).
@@ -106,11 +107,17 @@ Classes: 0=animal, 1=person, 2=vehicle.
 Confidence threshold: from slider (default 25%).
 
 ### 3. OpenCLIP ViT-B/32 (~350 MB, one-time download)
-Text-image cosine similarity. Global threshold scales with slider:
-  clip_threshold = max(0.15, 0.21 + (slider_value - 0.15))
-At 25% slider → 0.31 threshold (reduces false positives).
-Per-category overrides stored in category_thresholds.json (take precedence over global).
+Text-image cosine similarity. **Threshold is FIXED at CLIP_THRESHOLD = 0.22 — it does NOT
+scale with the confidence slider** (this was the single biggest bug of the testing phase:
+the slider drove the threshold to 0.38+ above ~30%, silently disabling all CLIP categories).
+MegaDetector and CLIP operate on totally different score scales, so they cannot share a slider.
+Per-category overrides stored in category_thresholds.json (take precedence over global) — used
+to tighten "sticky" categories like salmon/food to 0.27.
 User-definable categories: type a description → instant new category, zero retraining.
+LIMITATION: CLIP scores everything in a razor-thin 0.15-0.32 band. Concrete/distinct concepts
+(nature, snow, flowers, rabbits, cats) hit ~100%. Abstract concepts (events) or fine-grained ones
+(salmon vs other fish) cannot be cleanly separated by threshold. ~90% on clear subjects is the
+ceiling for this free local model. "Events" category was REMOVED for this reason.
 
 ### 4. Visual Similarity Search (same CLIP model, image-to-image)
 User uploads reference photo → CLIP image encoder → normalised feature vector stored in _ref_embedding.
@@ -120,7 +127,10 @@ Threshold: max(0.60, min(0.90, 0.70 + (confidence - 0.25) * 0.5))
 Matches copied to Similar_to_{refname}/ folder.
 
 ### 5. Laplacian blur (no model)
-Variance < 80 on greyscale → blurry. Images only. Majority vote.
+Variance < BLUR_THRESHOLD (currently **45**) on greyscale → blurry. Images only. Majority vote.
+LOWER = stricter (blurry photos have LOW variance). NOTE: the comment history here was once
+inverted — raising the threshold catches MORE photos as damaged, not fewer. 45 catches only
+genuinely out-of-focus shots; 150/300 wrongly flagged sharp photos with bokeh/smooth backgrounds.
 
 ### 6. EXIF tag detection (no model)
 Screenshots: software field or screen-resolution match.
@@ -134,10 +144,14 @@ Selfies: LensModel contains "front". Panoramas: SceneCaptureType == 3.
 **Images**: pHash difference ≤ 8 = duplicate (catches same photo re-saved at different quality).
 
 ### 8. Facial recognition (facenet-pytorch, ~110 MB one-time download)
-MTCNN + InceptionResnetV1 (VGGFace2). L2 threshold: 0.85.
+MTCNN + InceptionResnetV1 (VGGFace2). L2 threshold: FACE_THRESHOLD = **0.78** (lower = stricter).
+History: 0.85 matched non-faces → 0.72 too strict (missed real people like Mike) → 0.78 middle dial.
+Copies are collision-safe-named (Name_1.jpg…) so the count always matches files on disk.
 User adds profiles via UI (name + 1-5 photos). Stored as face_profiles\Name.npy.
 Runs independently of category matching on every file in sort mode.
 Install: pip install facenet-pytorch --no-deps (numpy 2.x workaround).
+LIMITATION: a face at a hard angle/lighting can sit just outside the match radius and be missed,
+while loosening the threshold lets non-faces slip in. Recall vs precision wall — no clean win.
 
 ### 9. HEIC support
 pillow-heif registers a Pillow opener at startup (try/except — optional).
@@ -212,42 +226,88 @@ no custom categories, AI mis-tagging with no review workflow, two-tool workflow
 
 ---
 
-## Current state (May 2026)
+## Current state (June 2026) — PHASE 1 COMPLETE, validated, v3.0 shipped
 
-### Phase 1 — FULLY BUILT, active testing in progress
+### Final testing conclusion
 
-All features implemented and bug-fixed. Active final testing in progress.
+Phase 1 is **done and validated** through repeated controlled tests (49–55 file sets with
+known content). The tool reached the realistic accuracy ceiling for a free, local model and
+shipped as v3.0. Final clean run (12 categories, fresh output folder):
 
-**Modes tested and confirmed working:**
-- Find Duplicates (dedupe) — videos exact-copy, images pHash. Full 1926-file library: 1302 unique, 624 duplicates, all correct.
-- Scan For Media (collect) — confirmed working
-- Sort By Category (sort) — PARTIALLY tested. MegaDetector (animals/people/vehicles) and face recognition confirmed working on 2404-file library. CLIP categories broken at 50% slider (threshold too high — now fixed). Rerun needed at 25% slider to validate CLIP categories.
+> Nature 17 · People 18 · Children 4 · Nancy 5 · Animals 19 · Cats 8 · Butterflies 3 ·
+> Pets 11 · Rabbit 3 · Vehicles 2 · Salmon 1 · Flowers 1 · 🔁 9 duplicates skipped
 
-**Bugs fixed during Sort By Category test:**
-- CLIP threshold cap: formula now capped at 0.38 max. Previously at 50% slider CLIP threshold hit 0.56 — effectively disabled. All CLIP categories (Nature, Food, Indoor, etc.) returned 0 matches. Fix: min(0.38, ...) cap in run_sort clip_thresh calculation.
-- Source-inside-output: fixed for all modes (see Key technical decisions).
-- These fixes are in app.py but NOT yet pushed to GitHub — accumulating fixes for clean release after full test pass.
+Counts match files on disk, duplicates auto-removed, near-zero false positives.
 
-**Modes not yet tested (continue from here):**
-- Sort By Category (sort) — rerun at 25% slider to validate CLIP categories (Nature, Indoor, Buildings, etc.)
-- Sort by Date (date) — EXIF → Year/Month folders
-- Sort by Location (location) — GPS → City folders
-- Find Photos With (filter) — AND logic multi-category
-- Find Similar Photos (similar) — CLIP image-to-image
-- Sort by Event (event) — time-gap clustering
+### The tool is really TWO products — judge them separately
 
-**Next session starting point:**
-1. Delete D:\c1_cleaned_and_sorted (incomplete test run, safe to delete — originals untouched in source)
-2. Restart app (Ctrl+C → Launch Media Sorter.bat)
-3. Run Sort By Category on D:\sorted_pictures\Unique_pictures → D:\c1_cleaned_and_sorted
-   - Slider: 25% (default)
-   - All categories ON
-   - Face profiles: Mike and Nancy already saved
-4. Let run overnight — ~13 hours for 2404 files
-5. Audit results: expect Animals, People, Vehicles, Night, Damaged + all CLIP categories populated
-6. Then proceed to test remaining modes one by one
+**🟢 Deterministic engine — production-quality, ~100% reliable.** These read facts or compare
+pixels; they do not guess:
+- Find Duplicates (pHash images / size+MD5 videos)
+- Sort by Date (EXIF), Sort by Location (GPS), Sort by Event (date-gap clustering)
+- Find Similar (CLIP image-to-image — 100% at 50% strictness)
+- Scan For Media (plain copy)
+- Person / Vehicle via MegaDetector (~95%)
 
-**Do NOT push to GitHub until all modes pass testing.** v2.0 was released during testing — accumulate remaining fixes for a clean v2.1 release when Phase 1 is complete.
+**This half is the tool's real, honest value. Position it as the headline feature.**
+
+**🟡 AI-category engine (CLIP text categories) — ~90% on clear subjects, at its ceiling.**
+Works great on concrete/distinct concepts; cannot reliably do abstract or fine-grained ones.
+Position as "smart best-effort suggestions, not perfect." Do NOT chase the last 10% with
+threshold tuning — it's whack-a-mole (tighten salmon → lose real salmon; loosen cats → Nancy's
+headshot returns).
+
+### Bugs fixed this phase (all in app.py / index.html, all in v3.0)
+
+- **CLIP decoupled from confidence slider** — now fixed at 0.22. The slider drove it to 0.38+
+  above ~30%, silently disabling CLIP. THE root cause of "CLIP never matches anything."
+- **Blur logic direction** — BLUR_THRESHOLD 80→150→300 was BACKWARDS (caught more, not fewer);
+  corrected to 45. Damaged false positives went 21 → ~3.
+- **IR_THRESHOLD** 12→8→3 — Night false positives → ~0.
+- **FACE_THRESHOLD** 0.85→0.72→0.78 — recall/precision balance for faces.
+- **Stale output accumulation** — output folders are now auto-cleared at the start of each
+  sort/filter/similar/dedupe run, so on-disk files always match the report. (This was the cause
+  of "count says 4 but folder has 11" — leftovers from prior runs piling up.)
+- **Automatic dedup in sort/filter** — near-identical photos skipped (one copy each); defers to
+  the explicit Duplicates category when the user enables it.
+- **Face copies collision-safe-named** — count matches files.
+- **Find Photos With results** — now shows the combined matched folder, not zero-count cards.
+- **Find Duplicates thumbnails** — written to disk so previews render (no more 404s).
+- **Confidence slider UX** — auto-hides unless People/Animal/Vehicle is enabled; relabeled
+  "People / Animal / Vehicle sensitivity" with a note it doesn't affect other categories.
+  (Stops users cranking it to max thinking higher = better and breaking detection.)
+- **Results badges use friendly labels** ("People: 18", "👤 Nancy: 5") not internal keys.
+- **Events category removed** — CLIP cannot infer social-event context.
+- Earlier: NetworkError multi-scan fix (_scan_id + GeneratorExit), _run_sort_safe crash guard,
+  load_frames timeout, source-inside-output fix, thumbs-cache excluded from scan.
+
+### KNOWN LIMITATIONS (model ceiling — NOT bugs, do not try to "fix")
+
+1. **Colour night/flash photos** are not detected as Night (IR detector only sees grayscale IR).
+2. **A face/headshot may land in Animals or Cats** — MegaDetector reads a close-up head as an
+   animal; CLIP confuses a face with a cat. Both sit inside the fuzzy score band.
+3. **Mike (and hard-angle faces) may be missed** at 0.78 — recall/precision wall.
+4. **Events / abstract concepts** — CLIP can't do them. Removed.
+5. **The same ambiguous photos fail the same way every run** — models are deterministic.
+
+### Recommended next steps (not yet done)
+
+- Update README.md / help.html to set honest expectations (deterministic = rock solid;
+  AI categories = ~90% smart suggestions). The in-app help still oversells the AI categories.
+- Optional: rename on-disk folders to friendly labels (currently "Person"/"Animal" folders,
+  while UI says "People"/"Animals"). Cosmetic — folders keyed by capitalized internal key.
+- Optional long-term: bigger CLIP model (ViT-L/14) widens the score margin but ~3× size/slower.
+- Code signing certificate ($70-300/yr) to remove Windows SmartScreen warnings on the installer.
+
+**Releases shipped:**
+- v1.0 — initial release
+- v2.0 — NetworkError fix, source-inside-output fix
+- v2.1 — CLIP threshold cap, load_frames timeout fix
+- v3.0 (June 2026) — CLIP decoupled from slider, blur/IR/face thresholds corrected, auto-clear
+  output, automatic dedup, slider UX, friendly labels, Events removed. **Validated — shippable.**
+
+**Note on "Include date in folder path" checkbox:**
+When ON, creates Night/2024/June/ subfolder structure. Makes auditing harder. Turn OFF for testing.
 
 ### Features implemented (test each):
 - MegaDetector: animals, people, vehicles
@@ -297,7 +357,7 @@ All 10 steps implemented. Needs one complete test pass before declaring done.
 
 | Step | Feature | Status |
 |---|---|---|
-| 1 | Validate everything end-to-end | ⏳ Test now |
+| 1 | Validate everything end-to-end | ✅ Validated (v3.0) |
 | 2 | Visual Similarity Search | ✅ |
 | 3 | Confidence Review Screen | ✅ |
 | 4 | HEIC support | ✅ |
@@ -378,10 +438,12 @@ Option B — Flutter + on-device AI (recommended):
 **torch.hub for MegaDetector:** YOLOv5 format; ultralytics YOLO class loads v8 only.
 trust_repo=True avoids interactive terminal prompt.
 
-**CLIP threshold scales with confidence slider:**
-clip_threshold = max(0.15, 0.21 + (confidence - 0.15)).
-At 25% → 0.31. Reduces false positives (karaoke mic in Food, etc.).
-Per-category overrides in _cat_thresholds dict take precedence over global.
+**CLIP threshold is FIXED, NOT slider-coupled (corrected in v3.0):**
+clip_threshold = CLIP_THRESHOLD = 0.22, constant. The old formula coupled it to the slider
+(max(0.15, 0.21 + (confidence - 0.15))) which drove it to 0.38+ above ~30% slider and silently
+disabled CLIP — the root cause of months of "CLIP never matches." MegaDetector and CLIP use
+different score scales and must NOT share a control. Per-category overrides in _cat_thresholds
+(category_thresholds.json) take precedence — used to tighten salmon/food to 0.27.
 
 **Visual similarity threshold:**
 sim_threshold = max(0.60, min(0.90, 0.70 + (confidence - 0.25) * 0.5))

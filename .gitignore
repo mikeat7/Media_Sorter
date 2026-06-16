@@ -10,6 +10,16 @@ face_profiles/
 # User-created categories — personal, machine-specific
 custom_categories.json
 
+# Per-category CLIP threshold overrides — machine-specific user config (auto-generated)
+category_thresholds.json
+
+# Compiled installer — attached to GitHub Releases, not committed to the repo
+dist/
+
+# Stray local files
+ad.docx
+Launch Trail Camera Sorter.bat
+
 # Sorted output folders
 MediaSorted/
 TrailCamera/
