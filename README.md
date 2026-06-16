@@ -1,38 +1,24 @@
 # Media Sorter — User Manual
 
-AI-powered photo and video organiser. Sorts trail camera footage, phone photos,
-or any folder of media into labelled subfolders automatically.
+A fully-offline AI photo and video organiser. Sorts trail camera footage, phone
+photos, or any folder of media into labelled subfolders. Nothing is ever uploaded.
 
 ---
 
 ## What it does
 
-Scans a folder of photos and videos, uses AI to identify what is in each file,
-and copies them into organised subfolders — Animals, People, Night, Nature,
-Buildings, Damaged, and more. You choose which categories you want.
+Scans a folder of photos and videos and organises them into subfolders. It does this
+two different ways, and it's worth understanding the difference:
 
----
+- **Fact-based sorting (rock-solid):** dates, GPS location, duplicates, faces, and
+  visual similarity. These read real data or compare pixels — they don't guess, and
+  they're reliable.
+- **AI scene recognition (smart best-effort):** categories like Nature, Buildings,
+  Food, Indoor, and your own custom categories. These are ~90% accurate on clear
+  subjects and occasionally miss or misfile ambiguous shots. Treat them as helpful
+  **suggestions, not guarantees** — a free, fully-offline AI model has real limits.
 
-## Files on your computer
-
-```
-C:\Users\...\Documents\
-  TrailCameraApp\           ← the app lives here
-    app.py                  ← main program (do not delete)
-    templates\index.html    ← the web interface
-    requirements.txt        ← list of needed packages
-    install.bat             ← first-time setup (run once)
-    Launch Media Sorter.bat ← how you open the app every time
-
-  trail_camera_sorter.py    ← original command-line backup script
-  md_v5a.0.0.pt             ← MegaDetector AI model (~290 MB)
-
-C:\Users\..\.cache\         ← CLIP AI model lives here (auto-managed)
-C:\Users\..\AppData\Roaming\Python\   ← Python packages (auto-managed)
-```
-
-Your sorted output goes wherever you set the Output folder in the app.
-Default: `C:\Users\...\Documents\MediaSorted\`
+You choose which modes and categories you want for each job.
 
 ---
 
@@ -41,125 +27,151 @@ Default: `C:\Users\...\Documents\MediaSorted\`
 **Step 1 — Install Python**
 
 Download and install Python 3.10 or newer from https://www.python.org/downloads/
-
 During install, check the box that says **"Add Python to PATH"** — this is important.
 
 **Step 2 — Install packages**
 
-Double-click `install.bat` inside the TrailCameraApp folder.
-A window will open and install everything automatically. Takes 5–15 minutes.
-You only ever do this once.
+Double-click `install.bat` inside the app folder. A window opens and installs
+everything automatically (5–15 minutes). You only do this once.
 
 **Step 3 — Done**
 
-From now on, just double-click `Launch Media Sorter.bat` to open the app.
-Your browser will open automatically at http://localhost:5000
+From now on, just double-click `Launch Media Sorter.bat`. Your browser opens
+automatically at http://localhost:5000
 
 ---
 
-## Using the app
+## The operation modes
 
-**1. Set the source folder**
+Pick a mode at the top of the app. Each does one job:
 
-This is where your photos/videos are. Click the 🔍 button to auto-detect an
-SD card or phone. If that doesn't work, type the path manually.
+| Mode | What it does | Reliability |
+|---|---|---|
+| 📷 Scan For Media | Copies all media into one folder — no AI | Exact |
+| 🔀 Sort By Category | Files into category subfolders (see below) | Mixed — see categories |
+| 📅 Sort by Date | Reads each photo's date → Year/Month folders | Rock-solid |
+| 📍 Sort by Location | Reads GPS data → City folders | Rock-solid (needs GPS in photo) |
+| 🔍 Find Photos With | Finds photos matching **all** chosen categories at once | As reliable as the categories used |
+| 🖼️ Find Similar Photos | Upload one photo → finds visually similar ones | Rock-solid |
+| 🔁 Find Duplicates | Finds duplicate/near-identical files | Rock-solid |
+| 🗓️ Sort by Event | Groups photos into events by time gaps | Rock-solid |
 
-Common paths:
-- SD card in card reader: `D:\DCIM\MOVIE` or `E:\DCIM\100MEDIA`
-- Phone plugged in via USB: browse My Computer for the phone drive
-- Old photo folder: `C:\Users\...\Pictures\Vacation2022`
+---
 
-**2. Set the output folder**
+## Categories (for Sort By Category)
 
-Where sorted subfolders will be created. Each category gets its own subfolder.
-You can use a different output folder for each project.
-
-**3. Choose file types**
-
-Toggle Videos (MP4, MOV, AVI…) and/or Photos (JPG, PNG, BMP…) on or off.
-
-**4. Choose categories**
-
-Click each category chip to turn it on (green dot) or off. Only selected
-categories will be sorted. Use "All on / All off" for quick switching.
+**Fact-based — reliable:**
 
 | Category | What it finds |
 |---|---|
-| 🌙 Night / IR | Infrared and night-vision footage — identified by greyscale colour |
-| ⚠️ Damaged | Blurry, out-of-focus, or corrupted images |
-| 🐾 Animals | Any animal — deer, bear, raccoon, birds, etc. |
-| 🚶 People | People in frame |
-| 🚗 Vehicles | Cars, trucks, ATVs |
+| 🐾 Animals | Any animal — deer, bear, raccoon, birds, etc. (MegaDetector) |
+| 🚶 People | People in frame (MegaDetector) |
+| 🚗 Vehicles | Cars, trucks, ATVs (MegaDetector) |
+| 🌙 Night / IR | Greyscale infrared / night-vision footage *(see note)* |
+| ⚠️ Damaged | Genuinely blurry or out-of-focus images |
+| 👤 Face profiles | People you've added by photo → their own folder |
+
+**AI scene recognition — smart best-effort (~90% on clear subjects):**
+
+| Category | What it finds |
+|---|---|
 | 🌿 Nature | Forest, fields, mountains, natural landscapes |
+| 🌸 Flowers | Flowers and blooming plants |
+| ❄️ Snow / Winter | Snow and winter scenes |
+| 🌊 Water / Beach | Ocean, lake, river scenes |
 | 🏛️ Buildings | Houses, structures, urban scenes |
 | 🍽️ Food | Meals, food close-ups |
 | 🏠 Indoor | Interior scenes |
-| 🌊 Water / Beach | Ocean, lake, river scenes |
+| 📄 Documents | Receipts, menus, printed text |
+| ➕ Your own | Type a description → instant custom category, no retraining |
 
-**5. Set confidence**
+> **Custom categories** are the standout feature. Type something like
+> *"a deer with antlers"* or *"a child blowing out birthday candles"* and the app
+> creates a matching category on the spot. They're best-effort like the other AI
+> categories, but no other free tool lets you do this.
 
-The slider controls how certain the AI must be before placing a file in a category.
-- Drag left: catches more (may include some false matches)
-- Drag right: only very confident matches (may miss some)
-- 15% is a good starting point for trail cameras
+---
 
-**6. Press Start**
+## The confidence slider — what it really controls
 
-The log shows each file as it is processed, colour-coded by category.
-Results appear as thumbnail previews in real time.
-Press the 📂 Open Folder button on any result card to open that folder.
+The slider **only affects People, Animals, and Vehicles.** It has **no effect** on
+the AI scene categories (Nature, Cats, Flowers, etc.) — those use a fixed setting.
+The app hides the slider automatically when it isn't relevant.
 
-**7. Stop at any time**
+- **Drag left ("Catch more"):** flags anything that might be a person/animal —
+  catches more, but with more false hits.
+- **Drag right ("Only confident"):** only very sure matches — cleaner, but may miss
+  distant or partial animals.
+- **Leave it at 25%** unless People/Animals are being over- or under-detected. For
+  trail cameras, 25% is a good default so you don't miss far-off wildlife.
 
-Press Stop to halt mid-sort. Files already copied remain in place.
-You can restart and it will process all files again (safe — just overwrites copies).
+---
+
+## Trail camera tips
+
+Media Sorter began as a trail-camera tool and still excels at it:
+
+1. **Source:** your SD card folder (e.g. `D:\DCIM\100MEDIA`).
+2. **Mode:** Sort By Category.
+3. **Enable:** Animals, People, Vehicles, Night/IR (and Damaged to cull empty/blurry
+   triggers).
+4. **Tick the 🎬 Videos file type** — trail cams record MP4/MOV. The app samples
+   frames at 2, 4, 6, 8, and 10 seconds (wildlife usually appears early).
+5. **Leave the slider at 25%.**
+6. **Afterward, run Find Duplicates** to collapse burst sequences into one copy each.
+
+---
+
+## Good to know
+
+- **Each run starts clean.** When you sort into an output folder, the app clears its
+  own previous results there first, so what's on disk always matches what the app
+  reports. Your original photos are never touched — the app only ever *copies*.
+- **Duplicates are skipped automatically** when sorting, so each unique photo is
+  filed once. (Tick the Duplicates category, or use Find Duplicates mode, if you'd
+  rather round them up for review instead.)
+- **Nothing is ever deleted.** Unmatched files go to `Unsorted/`. Duplicate review
+  moves files to a `Trash/` folder you control — never an automatic delete.
 
 ---
 
 ## First run note
 
-The first time you run a sort, the app downloads two AI models:
-- **MegaDetector** (~290 MB) — detects animals, people, vehicles
-- **CLIP** (~350 MB) — detects nature, buildings, food, and other scene types
+The first sort downloads two AI models (one time, then stored locally):
+- **MegaDetector** (~290 MB) — animals, people, vehicles
+- **CLIP** (~350 MB) — scene categories
 
-This happens once and is stored on your computer. All future sorts are instant to start.
-An internet connection is required for the first run only.
+An internet connection is needed for this first download only. Everything after is
+fully offline.
 
 ---
 
 ## Troubleshooting
 
-**Browser doesn't open automatically**
-Open your browser and go to http://localhost:5000 manually.
+**Browser doesn't open automatically** — go to http://localhost:5000 manually.
 
-**"Detection failed — enter path manually"**
-The auto-detect button couldn't find your SD card or phone.
-Just type the path in the Source box (e.g. `D:\DCIM\MOVIE`).
+**Auto-detect can't find the SD card** — type the path in the Source box
+(e.g. `D:\DCIM\100MEDIA`).
 
-**App won't start / error in the launch window**
-Run `install.bat` again to make sure all packages are installed.
-If still failing, try right-clicking `install.bat` and choosing "Run as administrator".
+**App won't start** — run `install.bat` again to confirm all packages installed.
 
-**Very slow processing**
-This computer uses the CPU (not a graphics card) for AI processing.
-Expect roughly 3–8 seconds per file. 500 files takes 30–60 minutes.
-A computer with an NVIDIA GPU would be 10–20x faster.
+**Very slow processing** — this runs on the CPU, not a graphics card. Expect roughly
+3–8 seconds per file. A PC with an NVIDIA GPU would be 10–20× faster.
 
-**A category I expected isn't being detected**
-Try lowering the confidence slider toward "More finds".
-Some animal types (e.g. deer) are detected with medium confidence — 10–12% may help.
+**An animal/person isn't being detected** — drag the slider toward "Catch more".
+(This only helps Animals/People/Vehicles — the slider doesn't affect scene categories.)
 
----
+**An AI scene category misses or misfiles a photo** — that's expected occasionally;
+these categories are ~90% best-effort, not perfect. Rewording a custom category's
+description can help.
 
-## Giving this to someone else
-
-Share the entire `TrailCameraApp` folder plus the `md_v5a.0.0.pt` model file.
-The recipient follows Setup steps 1 and 2 above (Python + install.bat).
-They do not need you, a terminal, or any technical knowledge after that.
+**Windows SmartScreen warning when installing** — because the installer isn't yet
+code-signed, Windows may warn. Click **More info → Run anyway**. The app is safe and
+fully offline.
 
 ---
 
 ## Privacy
 
-Everything runs locally on your computer. No photos or videos are ever uploaded
-to the internet. The only internet use is the one-time model download.
+Everything runs locally on your computer. No photos or videos are ever uploaded.
+The only internet use is the one-time model download.

@@ -266,7 +266,7 @@ code{background:#0e180e;border:1px solid #1e2e1e;border-radius:3px;padding:1px 6
     <h3>Options visible in this mode</h3>
     <ul>
       <li><strong>Categories</strong> — toggle on only the ones you want. All are off by default.</li>
-      <li><strong>Confidence slider</strong> — controls how strict the AI detectors are (see <a href="#confidence">Confidence slider</a>).</li>
+      <li><strong>Confidence slider</strong> — sensitivity for People/Animals/Vehicles only; appears only when one of those is enabled (see <a href="#confidence">Confidence slider</a>).</li>
       <li><strong>Copy to all matching categories</strong> — when ON, a file with both a person and an animal is placed in both <code>Person/</code> and <code>Animal/</code>. When OFF, only the highest-priority match is used.</li>
       <li><strong>Copy non-matching files to Unsorted/</strong> — when ON, every file that doesn't match any category is copied to <code>Unsorted/</code>. Turn this OFF for targeted searches — otherwise the entire library is copied.</li>
       <li><strong>Include date in folder path</strong> — files land in <code>Animal/2024/June/</code> instead of flat <code>Animal/</code>.</li>
@@ -277,6 +277,12 @@ code{background:#0e180e;border:1px solid #1e2e1e;border-radius:3px;padding:1px 6
     <p>If you have <a href="#faces">Face Profiles</a> registered, face recognition runs automatically on every file alongside the AI categories. Matched photos are copied to <code>People_Mike/</code>, <code>People_Sarah/</code> etc. You don't need to do anything extra — just run Sort By Category.</p>
 
     <div class="warn"><strong>Performance note:</strong> Leave "Copy non-matching to Unsorted/" OFF when you want only specific photos from a large library. With it ON, sorting 136 GB for cake photos would copy 136 GB — most of it to Unsorted/.</div>
+
+    <h3>Each run starts clean</h3>
+    <p>When you sort into an output folder, the app first clears its own previous results there, so the counts you see always match the files on disk — no leftovers piling up across runs. Your original photos are never touched; the app only ever <em>copies</em> from the source, so the output is always rebuildable. (This is skipped automatically if your source happens to live inside the output folder.)</p>
+
+    <h3>Duplicates are skipped automatically</h3>
+    <p>While sorting, near-identical copies of a photo are filed only once — you won't get the same image five times across your folders. The run summary reports how many were skipped (<strong>🔁 duplicates skipped: N</strong>). If you'd rather round duplicates up for review instead, tick the <strong>Duplicates</strong> category, or use <a href="#mode-dedupe">Find Duplicates</a> mode.</p>
   </div>
 
 
@@ -440,46 +446,46 @@ code{background:#0e180e;border:1px solid #1e2e1e;border-radius:3px;padding:1px 6
         <tr><td>🐾 Animals</td><td><span class="tag tag-ai">AI · MegaDetector</span></td><td class="yes">Applies</td><td>Wildlife detection model trained on trail camera footage. Excellent for deer, bears, birds, etc.</td></tr>
         <tr><td>🚶 People</td><td><span class="tag tag-ai">AI · MegaDetector</span></td><td class="yes">Applies</td><td>Person detection. Does not identify who — for that, use Face Profiles.</td></tr>
         <tr><td>🚗 Vehicles</td><td><span class="tag tag-ai">AI · MegaDetector</span></td><td class="yes">Applies</td><td>Cars, trucks, ATVs, etc.</td></tr>
-        <tr><td>🐕 Pets</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Dogs and cats specifically.</td></tr>
-        <tr><td>🌿 Nature</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Forests, mountains, rivers, wilderness landscapes.</td></tr>
-        <tr><td>🌅 Sunsets</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Orange/pink/red sky at sunrise or sunset.</td></tr>
-        <tr><td>🌊 Water / Beach</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Ocean, beach, lake, river, waves.</td></tr>
-        <tr><td>🏛️ Buildings</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Architecture, houses, urban environments.</td></tr>
-        <tr><td>🌸 Flowers</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Close-up flower and plant photography.</td></tr>
-        <tr><td>🍽️ Food</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Meals, drinks, food on a table.</td></tr>
-        <tr><td>📄 Documents</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Receipts, whiteboards, book pages, printed text.</td></tr>
-        <tr><td>❄️ Snow / Winter</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Winter landscapes, snow, ice.</td></tr>
-        <tr><td>🏠 Indoor</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Interior spaces, rooms, inside buildings.</td></tr>
-        <tr><td>🎉 Events</td><td><span class="tag tag-ai">AI · CLIP</span></td><td class="yes">Applies</td><td>Parties, celebrations, birthdays, weddings.</td></tr>
+        <tr><td>🐕 Pets</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Dogs and cats specifically.</td></tr>
+        <tr><td>🌿 Nature</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Forests, mountains, rivers, wilderness landscapes.</td></tr>
+        <tr><td>🌅 Sunsets</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Orange/pink/red sky at sunrise or sunset.</td></tr>
+        <tr><td>🌊 Water / Beach</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Ocean, beach, lake, river, waves.</td></tr>
+        <tr><td>🏛️ Buildings</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Architecture, houses, urban environments.</td></tr>
+        <tr><td>🌸 Flowers</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Flowers and blooming plants.</td></tr>
+        <tr><td>🍽️ Food</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Meals, drinks, food on a table.</td></tr>
+        <tr><td>📄 Documents</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Receipts, whiteboards, book pages, printed text.</td></tr>
+        <tr><td>❄️ Snow / Winter</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Winter landscapes, snow, ice.</td></tr>
+        <tr><td>🏠 Indoor</td><td><span class="tag tag-ai">AI · scene</span></td><td class="no">No effect</td><td>Interior spaces, rooms, inside buildings.</td></tr>
       </tbody>
     </table>
-    <p style="font-size:.78rem;color:#4a6a4a">Categories marked <span class="tag tag-fixed">Fixed rule</span> use a mathematical test — the confidence slider has <em>no effect</em> on them. They appear with a <strong>⚙ fixed rule</strong> label in the category grid.</p>
+    <p style="font-size:.78rem;color:#4a6a4a"><strong>Confidence slider</strong> only affects the three MegaDetector categories (Animals, People, Vehicles). AI <span class="tag tag-ai">scene</span> categories use a fixed threshold — tune them individually in the <a href="#thresholds">Per-category thresholds</a> panel. <span class="tag tag-fixed">Fixed rule</span> categories use a mathematical test with no confidence at all.</p>
   </div>
 
 
   <!-- ═══════════════════════════════════════════════════════════════ -->
   <div class="section" id="confidence">
     <h2>Confidence Slider</h2>
-    <p>The slider controls how strict the AI has to be before it places a file in a category. It runs from <strong>5% (very loose)</strong> to <strong>60% (very strict)</strong>. Default is 25%.</p>
+    <p>The slider sets how sure the AI must be before flagging a <strong>person, animal, or vehicle</strong>. It runs from <strong>5% (catch more)</strong> to <strong>60% (only confident)</strong>. Default is 25%. The app hides the slider automatically when it isn't relevant to your current selection.</p>
 
     <h3>What it affects</h3>
     <ul>
-      <li><strong>MegaDetector categories</strong> (Animals, People, Vehicles) — the minimum detection confidence score required.</li>
-      <li><strong>CLIP categories</strong> (Nature, Food, Sunset, etc. and all custom categories) — the minimum text-image similarity score required.</li>
+      <li><strong>People, Animals, Vehicles</strong> (MegaDetector) — the minimum detection confidence required.</li>
       <li><strong>Find Similar Photos mode</strong> — how closely photos must match the reference image. The slider auto-sets to 50% in this mode.</li>
     </ul>
 
     <h3>What it does NOT affect</h3>
-    <p>Categories marked <strong>⚙ fixed rule</strong> use mathematical tests with no confidence score: Night/IR, Damaged, Screenshots, Selfies, Panoramas, and Duplicates. Changing the slider has zero effect on these.</p>
-
-    <h3>Choosing the right level</h3>
     <ul>
-      <li><strong>5–15%</strong> — very broad. Catches almost everything but produces many false hits.</li>
-      <li><strong>25%</strong> (default) — balanced for general sorting.</li>
-      <li><strong>40–50%</strong> — stricter. Good for Find Similar Photos or when false positives are a problem.</li>
-      <li><strong>60%</strong> — strictest. Misses some real matches but almost no false hits.</li>
+      <li><strong>The AI scene categories</strong> (Nature, Food, Snow, Flowers, etc. and all custom categories) use a <em>fixed</em> internal threshold and ignore this slider completely. MegaDetector and the scene model score on totally different scales, so they can't share one control. To fine-tune an individual scene category, use the <a href="#thresholds">Per-category thresholds</a> panel instead.</li>
+      <li><strong>Fixed-rule categories</strong> — Night/IR, Damaged, Screenshots, Selfies, Panoramas, Duplicates — use mathematical tests with no confidence score.</li>
     </ul>
-    <div class="note"><strong>Trail camera note:</strong> MegaDetector was trained on trail camera footage and performs very well at 25% for animals. Going higher (50%+) may miss partially visible animals or distant wildlife.</div>
+
+    <h3>Choosing the right level (People / Animals / Vehicles)</h3>
+    <ul>
+      <li><strong>5–15%</strong> — very broad. Catches almost everything but produces more false hits.</li>
+      <li><strong>25%</strong> (default) — balanced for general sorting.</li>
+      <li><strong>40–60%</strong> — stricter. Cleaner folders, but may miss distant or partial subjects.</li>
+    </ul>
+    <div class="note"><strong>Trail camera note:</strong> MegaDetector was trained on trail camera footage and performs very well at 25% for animals. Going higher (50%+) may miss partially visible or distant wildlife — so don't assume "higher = better."</div>
   </div>
 
 
@@ -525,7 +531,8 @@ code{background:#0e180e;border:1px solid #1e2e1e;border-radius:3px;padding:1px 6
       <li><span class="sc">Click <strong>Add ＋</strong>. The new category appears as a toggle immediately.</span></li>
     </ol>
 
-    <p>Custom categories are saved to <code>custom_categories.json</code> and persist across app restarts. They work exactly like built-in categories and respond to the confidence slider.</p>
+    <p>Custom categories are saved to <code>custom_categories.json</code> and persist across app restarts. They work exactly like the built-in AI scene categories — best-effort matches that ignore the confidence slider. To make one stricter or looser, give it a <a href="#thresholds">per-category threshold</a>.</p>
+    <div class="note"><strong>Expectation:</strong> like all AI scene categories, custom ones are ~90% accurate on clear, distinct subjects. Concrete subjects ("a yellow school bus") work better than abstract ones ("a happy moment"). Reword the description if matches are off.</div>
 
     <div class="tip"><strong>Writing good descriptions:</strong> Be specific and visual. "a photo of a red barn" works better than "barn." "a golden retriever puppy playing in grass" works better than "my dog." The AI matches based on visual content described in plain English.</div>
 
@@ -537,16 +544,16 @@ code{background:#0e180e;border:1px solid #1e2e1e;border-radius:3px;padding:1px 6
   <!-- ═══════════════════════════════════════════════════════════════ -->
   <div class="section" id="thresholds">
     <h2>Per-Category Sensitivity Overrides</h2>
-    <p>In Sort By Category and Find Photos With modes, a collapsible <strong>⚙️ Per-category sensitivity overrides</strong> panel appears below the categories. This lets you set a different confidence threshold for each CLIP category, independent of the global slider.</p>
+    <p>In Sort By Category and Find Photos With modes, a collapsible <strong>⚙️ Per-category sensitivity overrides</strong> panel appears below the categories. Because the confidence slider does <em>not</em> affect AI scene categories, this panel is the <strong>only</strong> way to make an individual scene category stricter or looser.</p>
 
     <ul>
-      <li>Each CLIP category gets its own slider from 5% to 80%.</li>
-      <li>An override takes priority over the global slider for that category.</li>
-      <li>A <strong>↺</strong> button resets a category back to following the global slider.</li>
+      <li>Each scene category gets its own slider.</li>
+      <li>An override sets that category's exact threshold; higher = fewer but more confident matches.</li>
+      <li>A <strong>↺</strong> button resets a category back to the default.</li>
       <li>Overrides are saved to <code>category_thresholds.json</code> and persist across restarts.</li>
     </ul>
 
-    <div class="tip"><strong>Example use:</strong> Food often produces false positives (a red flower might score as food). Set Food's override to 45% while keeping the global slider at 25% for everything else.</div>
+    <div class="tip"><strong>Example use:</strong> Food sometimes over-matches (a red flower might score as food). Raise Food's override until only real food matches — it won't affect any other category.</div>
   </div>
 
 
